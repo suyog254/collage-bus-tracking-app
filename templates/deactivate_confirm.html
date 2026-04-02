@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block title %}Deactivate Bus - BusTracker{% endblock %}
+{% block content %}
+
+<div class="page">
+    <div class="page-header">
+        <h1>⚠️ Deactivate Bus</h1>
+        <p>Review and assign alternate bus before deactivating</p>
+    </div>
+
+    <!-- Bus Info -->
+    <div class="panel" style="border-left: 4px solid #ef4444;">
+        <h2 style="color:#ef4444;">🚌 Bus Being Deactivated</h2>
+        <div class="info-row"><span class="key">Bus Number</span><span class="val"><b>{{ bus.bus_number }}</b></span></div>
+        <div class="info-row"><span class="key">Driver</span><span class="val">{{ bus.driver_name }}</span></div>
+        <div class="info-row"><span class="key">Driver Phone</span><span class="val">{{ bus.driver_phone or 'N/A' }}</span></div>
+        <div class="info-row"><span class="key">Capacity</span><span class="val">{{ bus.capacity }} seats</span></div>
+    </div>
+
+    <!-- Affected Routes -->
+    {% if affected_routes %}
+    <div class="panel" style="border-left: 4px solid #f59e0b;">
+        <h2 style="color:#f59e0b;">📍 Affected Routes</h2>
+        <p style="color:#64748b;margin-bottom:12px;">These routes will need an alternate bus:</p>
+        {% for r in affected_routes %}
+        <div class="info-row">
+            <span class="key">{{ r.route_name }}</span>
+            <span class="val">{{ r.start_point }} → {{ r.end_point }} | 🕐 {{ r.departure_time }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="panel">
+        <p style="color:#64748b;text-align:center;padding:16px;">No routes currently assigned to this bus.</p>
+    </div>
+    {% endif %}
+
+    <!-- Alternate Bus Selection Form -->
+    <div class="panel">
+        <h2>🔄 Deactivation Details</h2>
+        <form method="POST" action="{{ url_for('bus_status', bid=bus.id, status='inactive') }}">
+
+            <!-- REASON DROPDOWN -->
+            <div style="margin-bottom:24px;">
+                <label style="display:block;font-weight:600;margin-bottom:10px;color:#374151;">
+                    ⚠️ Deactivation Reason <span style="color:#ef4444;">*</span>
+                </label>
+                <div class="reason-options">
+                    <label class="reason-option">
+                        <input type="radio" name="reason" value="technical" required>
+                        <div class="reason-card">
+                            <span style="font-size:22px">🔧</span>
+                            <div>
+                                <div style="font-weight:600;">Technical Issue</div>
+                                <div style="font-size:12px;color:#64748b;">The bus has developed a technical fault</div>
+                            </div>
+                        </div>
+                    </label>
+                    <label class="reason-option">
+                        <input type="radio" name="reason" value="accident" required>
+                        <div class="reason-card">
+                            <span style="font-size:22px">🚨</span>
+                            <div>
+                                <div style="font-weight:600;">Accident</div>
+                                <div style="font-size:12px;color:#64748b;">The bus is unavailable due to an accident</div>
+                            </div>
+                        </div>
+                    </label>
+                    <label class="reason-option">
+                        <input type="radio" name="reason" value="maintenance" required>
+                        <div class="reason-card">
+                            <span style="font-size:22px">🛠️</span>
+                            <div>
+                                <div style="font-weight:600;">Maintenance</div>
+                                <div style="font-size:12px;color:#64748b;">The bus has been sent for scheduled maintenance</div>
+                            </div>
+                        </div>
+                    </label>
+                    <label class="reason-option">
+                        <input type="radio" name="reason" value="other" required>
+                        <div class="reason-card">
+                            <span style="font-size:22px">📋</span>
+                            <div>
+                                <div style="font-weight:600;">Other Reason</div>
+                                <div style="font-size:12px;color:#64748b;">Any other reason</div>
+                            </div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <div style="margin-bottom:20px;">
+                <label style="display:block;font-weight:600;margin-bottom:10px;color:#374151;">
+                    Select Alternate Bus <span style="color:#94a3b8;font-weight:400;">(optional)</span>
+                </label>
+
+                {% if active_buses %}
+                <div class="alt-bus-list">
+                    <label class="alt-bus-option">
+                        <input type="radio" name="alt_bus_id" value="">
+                        <div class="alt-bus-card alt-bus-none">
+                            <span style="font-size:20px">🚫</span>
+                            <div>
+                                <div style="font-weight:600;color:#ef4444;">No Alternate Bus</div>
+                                <div style="font-size:12px;color:#94a3b8;">Students will be notified, no reassignment</div>
+                            </div>
+                        </div>
+                    </label>
+                    {% for b in active_buses %}
+                    <label class="alt-bus-option">
+                        <input type="radio" name="alt_bus_id" value="{{ b.id }}">
+                        <div class="alt-bus-card">
+                            <span style="font-size:20px">🚌</span>
+                            <div>
+                                <div style="font-weight:600;color:#1e40af;">{{ b.bus_number }}</div>
+                                <div style="font-size:13px;color:#374151;">Driver: {{ b.driver_name }}</div>
+                                <div style="font-size:12px;color:#64748b;">📞 {{ b.driver_phone or 'N/A' }} &nbsp;|&nbsp; 💺 {{ b.capacity }} seats</div>
+                            </div>
+                        </div>
+                    </label>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:16px;color:#dc2626;">
+                    ❌ No active buses available for alternate assignment.
+                </div>
+                {% endif %}
+            </div>
+
+            <div style="display:flex;gap:12px;margin-top:24px;">
+                <button type="submit" class="btn-deactivate-confirm"
+                        onclick="return confirm('Are you sure you want to deactivate {{ bus.bus_number }}? Students will be notified.')">
+                    ⚠️ Confirm Deactivate & Notify Students
+                </button>
+                <a href="{{ url_for('admin_dashboard') }}#buses" class="btn-cancel-deactivate">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.reason-options { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:4px; }
+.reason-option { cursor:pointer; }
+.reason-option input[type=radio] { display:none; }
+.reason-card {
+    display:flex; align-items:center; gap:12px;
+    padding:12px 16px; border:2px solid #e2e8f0;
+    border-radius:12px; background:#f8fafc;
+    transition:all 0.2s; cursor:pointer; height:100%;
+}
+.reason-option input[type=radio]:checked + .reason-card {
+    border-color:#f59e0b; background:#fffbeb;
+    box-shadow:0 0 0 3px rgba(245,158,11,0.15);
+}
+.reason-card:hover { border-color:#94a3b8; }
+@media(max-width:500px){ .reason-options{ grid-template-columns:1fr; } }
+.alt-bus-list { display:flex; flex-direction:column; gap:10px; }
+.alt-bus-option { cursor:pointer; }
+.alt-bus-option input[type=radio] { display:none; }
+.alt-bus-card {
+    display:flex; align-items:center; gap:14px;
+    padding:14px 18px; border:2px solid #e2e8f0;
+    border-radius:12px; background:#f8fafc;
+    transition:all 0.2s; cursor:pointer;
+}
+.alt-bus-none { background:#fff5f5; border-color:#fecaca; }
+.alt-bus-option input[type=radio]:checked + .alt-bus-card {
+    border-color:#3b82f6; background:#eff6ff;
+    box-shadow:0 0 0 3px rgba(59,130,246,0.15);
+}
+.alt-bus-option input[type=radio]:checked + .alt-bus-none {
+    border-color:#ef4444; background:#fef2f2;
+    box-shadow:0 0 0 3px rgba(239,68,68,0.15);
+}
+.alt-bus-card:hover { border-color:#94a3b8; background:#f1f5f9; }
+.btn-deactivate-confirm {
+    background:#ef4444; color:#fff; border:none;
+    padding:12px 24px; border-radius:10px;
+    font-size:15px; font-weight:600; cursor:pointer;
+    transition:background 0.2s;
+}
+.btn-deactivate-confirm:hover { background:#dc2626; }
+.btn-cancel-deactivate {
+    background:#f1f5f9; color:#374151;
+    padding:12px 24px; border-radius:10px;
+    font-size:15px; font-weight:600;
+    text-decoration:none; display:inline-block;
+    transition:background 0.2s;
+}
+.btn-cancel-deactivate:hover { background:#e2e8f0; }
+</style>
+{% endblock %}

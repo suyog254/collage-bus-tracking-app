@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Register - BusTracker{% endblock %}
+{% block content %}
+
+<div class="auth-wrapper">
+    <div class="auth-card" style="max-width:480px">
+        <h2>Create Account 🚌</h2>
+        <p class="sub">Register as a student to track your bus</p>
+
+        <form method="POST" action="{{ url_for('register') }}">
+            <div class="row2">
+                <div class="form-group">
+                    <label>Full Name *</label>
+                    <input type="text" id="name" name="name" placeholder="Rahul Sharma" required>
+                    <small id="nameError" style="color:red;"></small>
+                </div>
+                <div class="form-group">
+                    <label>Phone Number *</label>
+                    <input type="tel" id="phone" name="phone" placeholder="9876543210" required>
+                    <small id="phoneError" style="color:red;"></small>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Email Address *</label>
+                <input type="email" id="email" name="email" placeholder="rahul@example.com" required>
+                <small id="emailError" style="color:red;"></small>
+            </div>
+
+            <div class="row2">
+                <div class="form-group" style="position:relative;">
+                    <label>Password *</label>
+                    <input type="password" id="password" name="password" placeholder="Min 6 characters" required>
+                    <span onclick="togglePassword('password', this)" 
+                      style="position:absolute; right:10px; top:38px; cursor:pointer;">
+                    👁️ 
+                    </span>
+                    <small id="passwordError" style="color:red;"></small>
+                </div>
+                <div class="form-group" style="position:relative;">
+                    <label>Confirm Password *</label>
+                    <input type="password" id="confirm_password" name="confirm_password" placeholder="Re-enter password" required>
+    
+                    <span onclick="togglePassword('confirm_password', this)" 
+                    style="position:absolute; right:10px; top:38px; cursor:pointer;">
+                  👁️
+                </span>
+                
+                <small id="confirmError" style="color:red;"></small>
+            </div>
+            </div>
+            <div class="form-group">
+                <label>Select Your Bus Route</label>
+                <select name="route_id" id="route" required>
+                    <option value="">-- Select a route --</option>
+                    {% for r in routes %}
+                    <option value="{{ r.id }}">{{ r.route_name }}</option>
+                    {% endfor %}
+                </select>
+                <small id="routeError" style="color:red;"></small>
+                <div class="hint">You can contact admin to change this later</div>
+            </div>
+
+            <button type="submit" class="btn-submit">Create Account</button>
+            <button type="reset" class="btn-reset">Reset Form</button>
+        </form>
+
+        <div class="auth-footer">
+            Already have an account? <a href="{{ url_for('student_login') }}">Login here</a>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById("name").addEventListener("input", function() {
+    let name = this.value;
+    let regex = /^[A-Za-z ]{3,}$/;
+    document.getElementById("nameError").innerText =
+        regex.test(name) ? "" : "Only alphabets (min 3 characters)";
+});
+
+document.getElementById("phone").addEventListener("input", function() {
+    let phone = this.value.replace(/[^0-9]/g, '');
+    this.value = phone;
+    document.getElementById("phoneError").innerText =
+        phone.length === 10 ? "" : "Enter 10 digit number";
+});
+
+document.getElementById("email").addEventListener("input", function() {
+    let email = this.value;
+    let regex = /^[\w\.-]+@[\w\.-]+\.\w{2,}$/;
+    document.getElementById("emailError").innerText =
+        regex.test(email) ? "" : "Invalid email format";
+});
+
+document.getElementById("password").addEventListener("input", function() {
+    let pw = this.value;
+    let regex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&]).{6,}$/;
+    document.getElementById("passwordError").innerText =
+        regex.test(pw) ? "" : "Weak password";
+});
+
+document.getElementById("confirm_password").addEventListener("input", function() {
+    let pw = document.getElementById("password").value;
+    let cpw = this.value;
+    document.getElementById("confirmError").innerText =
+        pw === cpw ? "" : "Passwords do not match";
+});
+</script>
+<script>
+function togglePassword(fieldId, icon) {
+    let input = document.getElementById(fieldId);
+
+    if (input.type === "password") {
+        input.type = "text";
+        icon.textContent = "🙈"; // hide icon
+    } else {
+        input.type = "password";
+        icon.textContent = "👁️"; // show icon
+    }
+}
+</script>
+<script>
+document.getElementById("route").addEventListener("change", function() {
+    let route = this.value;
+    document.getElementById("routeError").innerText =
+        route === "" ? "Please select a route" : "";
+});
+</script>
+
+{% endblock %}

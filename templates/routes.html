@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Routes - BusTracker{% endblock %}
+{% block content %}
+
+<div class="page">
+    <div class="page-header" style="text-align:center;margin-bottom:36px">
+        <h1>🗺️ Bus Routes</h1>
+        <p>All available routes with timings, stops, and bus details</p>
+    </div>
+
+    <div class="routes-grid">
+    {% for r in routes %}
+    <div class="route-card">
+        <div class="route-header">
+            <div class="route-name">{{ r.route_name }}</div>
+            <span class="badge {{ 'badge-green' if r.status == 'active' else 'badge-red' }}">
+                {{ r.status.upper() if r.status else 'ACTIVE' }}
+            </span>
+        </div>
+        <div class="route-info">
+            <div class="ri-item"><div class="key">Departure</div><div class="val">{{ r.departure_time }}</div></div>
+            <div class="ri-item"><div class="key">Arrival</div><div class="val">{{ r.arrival_time }}</div></div>
+        </div>
+        <div class="stops-label">Stops</div>
+        <div class="stops-flow">
+            {% set stop_list = r.stops.replace('-', '→').replace(',', '→').split('→') %}
+            {% for stop in stop_list %}
+            <span class="stop-chip">{{ stop.strip() }}</span>
+            {% endfor %}
+        </div>
+        {% if r.bus_number %}
+        <div class="bus-info">
+            <span>🚌 Bus: <b>{{ r.bus_number }}</b></span>
+            <span>👤 Driver: <b>{{ r.driver_name }}</b></span>
+        </div>
+        {% endif %}
+    </div>
+    {% else %}
+    <div style="text-align:center;color:#94a3b8;padding:40px;grid-column:1/-1">No routes available.</div>
+    {% endfor %}
+    </div>
+</div>
+
+{% endblock %}

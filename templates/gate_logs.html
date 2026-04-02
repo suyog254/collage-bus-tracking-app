@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Gate Logs - BusTracker{% endblock %}
+{% block content %}
+
+<div class="page">
+    <div class="page-header-row">
+        <h1>🔒 Gate Entry / Exit Logs</h1>
+        <a href="{{ url_for('admin_dashboard') }}" class="back-btn">← Back to Admin</a>
+    </div>
+
+    {% set entries = logs|selectattr('entry_type','equalto','Entry')|list %}
+    {% set exits   = logs|selectattr('entry_type','equalto','Exit')|list %}
+    <div class="summary">
+        <div class="sum-card"><div class="num" style="color:#3498db">{{ logs|length }}</div><div class="lbl">Total Logs</div></div>
+        <div class="sum-card"><div class="num" style="color:#27ae60">{{ entries|length }}</div><div class="lbl">Entries</div></div>
+        <div class="sum-card"><div class="num" style="color:#e74c3c">{{ exits|length }}</div><div class="lbl">Exits</div></div>
+        <div class="sum-card"><div class="num" style="color:#f39c12">{{ buses|length }}</div><div class="lbl">Total Buses</div></div>
+    </div>
+
+    <div class="panel">
+        <h2>All Gate Logs (Latest First)</h2>
+        <table>
+            <thead>
+                <tr><th>#</th><th>Bus Number</th><th>Driver</th><th>Entry Type</th><th>Date &amp; Time</th><th>Logged By</th></tr>
+            </thead>
+            <tbody>
+            {% for l in logs %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td><b>{{ l.bus_number }}</b></td>
+                <td>{{ l.driver_name or '—' }}</td>
+                <td>
+                    <span class="badge {{ 'badge-in' if l.entry_type == 'Entry' else 'badge-out' }}">
+                        {{ l.entry_type }}
+                    </span>
+                </td>
+                <td>{{ l.log_time }}</td>
+                <td>{{ l.noted_by }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:32px">No gate logs recorded yet.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endblock %}

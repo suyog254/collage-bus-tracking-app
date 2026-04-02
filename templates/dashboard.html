@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}My Dashboard - BusTracker{% endblock %}
+{% block content %}
+
+<div class="page">
+    <div class="page-header">
+        <h1>👋 Hello, {{ user.name }}!</h1>
+        <p>Your personal bus tracking dashboard</p>
+    </div>
+
+    <div class="info-cards">
+        <div class="info-card">
+            <div class="label">Your Route</div>
+            <div class="value">{{ my_route.route_name if my_route else 'Not Assigned' }}</div>
+            <div class="sub">{{ my_route.departure_time + ' departure' if my_route else 'Contact admin to assign' }}</div>
+        </div>
+        <div class="info-card">
+            <div class="label">Bus Number</div>
+            <div class="value">{{ my_route.bus_number if my_route else '—' }}</div>
+            <div class="sub">Assigned bus</div>
+        </div>
+        <div class="info-card">
+            <div class="label">Bus Status</div>
+            <div class="value">
+                {% if my_route %}
+                    <span class="badge {{ 'badge-green' if my_route.status == 'active' else 'badge-red' }}">
+                        {{ my_route.status.upper() }}
+                    </span>
+                {% else %}—{% endif %}
+            </div>
+            <div class="sub">Live status</div>
+        </div>
+        <div class="info-card">
+            <div class="label">Your Email</div>
+            <div class="value" style="font-size:15px">{{ user.email }}</div>
+            <div class="sub">Registered account</div>
+        </div>
+    </div>
+
+    {% if my_route %}
+    <div class="panel">
+        <h2>🚌 My Bus Details</h2>
+        <div class="info-row"><span class="key">Bus Number</span><span class="val">{{ my_route.bus_number }}</span></div>
+        <div class="info-row"><span class="key">Driver Name</span><span class="val">{{ my_route.driver_name }}</span></div>
+        <div class="info-row"><span class="key">Driver Phone</span><span class="val">{{ my_route.driver_phone or 'N/A' }}</span></div>
+        <div class="info-row"><span class="key">Departure Time</span><span class="val">{{ my_route.departure_time }}</span></div>
+        <div class="info-row"><span class="key">Arrival Time</span><span class="val">{{ my_route.arrival_time }}</span></div>
+        <div class="info-row"><span class="key">From → To</span><span class="val">{{ my_route.start_point }} → {{ my_route.end_point }}</span></div>
+        <div style="margin-top:14px">
+            <div style="font-size:13px;color:#64748b;margin-bottom:8px;font-weight:bold">STOPS</div>
+            <div class="stops-list">
+                {% for stop in my_route.stops.split('→') %}
+                <span class="stop-chip">{{ stop.strip() }}</span>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="panel">
+        <h2>📍 No Route Assigned</h2>
+        <p style="color:#94a3b8;text-align:center;padding:24px">You haven't been assigned a bus route yet. Please contact the admin.</p>
+    </div>
+    {% endif %}
+
+    <div class="panel">
+        <h2>🗺️ All Available Routes</h2>
+        <div class="route-grid">
+            {% for r in all_routes %}
+            <div class="route-mini-card">
+                <strong>{{ r.route_name }}</strong>
+                <div>🕐 Departs: <b>{{ r.departure_time }}</b></div>
+                <div>🏁 Arrives: <b>{{ r.arrival_time }}</b></div>
+                <div style="margin-top:6px;color:#64748b;font-size:12px">{{ r.stops }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+{% endblock %}

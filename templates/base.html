@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}BusTracker - CDIPS{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+<nav>
+    <div class="nav-logo">
+        <div class="nav-logo-icon">
+            <svg viewBox="0 0 24 24"><path d="M4 16c0 .88.39 1.67 1 2.22V20a1 1 0 001 1h1a1 1 0 001-1v-1h8v1a1 1 0 001 1h1a1 1 0 001-1v-1.78c.61-.55 1-1.34 1-2.22V6c0-3.5-3.58-4-8-4S4 2.5 4 6v10zm3.5 1a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm9 0a1.5 1.5 0 110-3 1.5 1.5 0 010 3zM6 6h12v5H6V6z"/></svg>
+        </div>
+        <span>BusTracker</span>
+    </div>
+    <div class="nav-links">
+        <a href="{{ url_for('home') }}">Home</a>
+        <a href="{{ url_for('routes_page') }}">Routes</a>
+        {% if 'admin' in session or 'student' in session %}
+            {% if 'admin' in session %}
+                <a href="{{ url_for('admin_dashboard') }}">Admin Panel</a>
+                <a href="{{ url_for('students_list') }}">Students</a>
+                <a href="{{ url_for('gate_logs_page') }}">Gate Logs</a>
+            {% else %}
+                <a href="{{ url_for('dashboard') }}">My Dashboard</a>
+                <!-- Bell icon — CSS only, no JS -->
+                <details class="bell-wrap">
+                    <summary class="bell-btn">
+                        🔔
+                        {% if unread_count > 0 %}
+                        <span class="bell-badge">{{ unread_count }}</span>
+                        {% endif %}
+                    </summary>
+                    <div class="bell-dropdown">
+                        <div class="bell-dropdown-header">
+                            <span>Notifications</span>
+                            <div style="display:flex;gap:6px;">
+                                {% if unread_count > 0 %}
+                                <form method="POST" action="{{ url_for('mark_notifications_read') }}">
+                                    <button class="bell-action-btn">✓ Read</button>
+                                </form>
+                                {% endif %}
+                                {% if notifications %}
+                                <form method="POST" action="{{ url_for('delete_all_notifications') }}"
+                                      onsubmit="return confirm('Delete all notification?')">
+                                    <button class="bell-action-btn bell-delete-btn">🗑 Delete all</button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% if notifications %}
+                            {% for n in notifications %}
+                            <div class="bell-notif-item {{ 'bell-unread' if not n.is_read else '' }}">
+                                <div class="bell-notif-row">
+                                    <div class="bell-notif-msg">{{ n.message }}</div>
+                                    <form method="POST" action="{{ url_for('delete_notification', nid=n.id) }}">
+                                        <button class="bell-del-one" title="Delete">✕</button>
+                                    </form>
+                                </div>
+                                <div class="bell-notif-time">🕐 {{ n.created_at[:16] if n.created_at else '' }}</div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                        <div class="bell-empty">
+                            <span>🔕</span>
+                            <div>No notification available</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </details>
+            {% endif %}
+            <span style="color:#94a3b8;font-size:13px">
+                Hi,
+                {% if 'admin' in session %}
+                {{ session['admin']['name'] }}
+                {% else %}
+                {{ session['student']['name'] }}
+                {% endif %}
+            </span>
+            {% if 'admin' in session %}
+            <a href="/logout/admin" class="btn-danger">Logout</a>
+            {% else %}
+            <a href="/logout/student" class="btn-danger">Logout</a>
+            {% endif %}
+        {% else %}
+
+
+            <!-- Login Dropdown with Two Options -->
+            <div style="position: relative; display: inline-block;">
+                <details style="list-style: none;">
+                    <summary class="btn-nav" style="cursor: pointer; user-select: none;">
+                        Login
+                    </summary>
+                    <div style="position: absolute; right: 0; top: calc(100% + 8px); background: white; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); min-width: 160px; z-index: 100;">
+                        <a href="{{ url_for('student_login') }}" style="display: block; padding: 10px 16px; color: #374151; font-size: 14px; border-bottom: 1px solid #f1f5f9; transition: background 0.2s;">
+                            🎓 Student Login
+                        </a>
+                        <a href="{{ url_for('admin_login') }}" style="display: block; padding: 10px 16px; color: #374151; font-size: 14px; transition: background 0.2s;">
+                            ⚙️ Admin Login
+                        </a>
+                    </div>
+                </details>
+            </div>
+            <a href="{{ url_for('register') }}">Register</a>
+        {% endif %}
+    </div>
+</nav>
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <div class="flash-messages">
+    {% for cat, msg in messages %}
+      <div class="flash {{ cat }}">{{ msg }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+{% endwith %}
+{% block content %}{% endblock %}
+<footer><p>© 2026 College Bus Tracking System — CDIPS, Indore (M.P.)</p></footer>
+
+<style>
+/* Dropdown hover effects */
+details > div a:hover {
+    background: #f8fafc;
+}
+details[open] summary {
+    background: #2980b9 !important;
+}
+</style>
+
+</body>
+</html>
