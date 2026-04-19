@@ -1,8 +1,7 @@
-from email import errors
-from xml.parsers.expat import errors
+import csv
 
 from flask import Flask, render_template, request, redirect, url_for, session, flash
-import sqlite3, os, re
+import sqlite3,re
 from functools import wraps
 
 app = Flask(__name__)
@@ -69,6 +68,49 @@ def init_db():
             ('Route B - Palasia',2,'Palasia','CDIPS College','07:45','08:20','Palasia → LIG Colony → Tilak Nagar → CDIPS'),
             ('Route C - Rajwada',3,'Rajwada','CDIPS College','07:15','08:10','Rajwada → Sarwate → Geeta Bhawan → CDIPS')])
     conn.commit(); conn.close()
+    
+def export_to_csv():
+    """Export database tables to CSV files for backup"""
+    conn = sqlite3.connect(DB)
+    conn.row_factory = sqlite3.Row
+    
+    # Export buses
+    buses = conn.execute("SELECT * FROM buses").fetchall()
+    with open('backup_buses.csv', 'w', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        writer.writerow(['id', 'bus_number', 'driver_name', 'driver_phone', 'capacity', 'status'])
+        for bus in buses:
+            writer.writerow([bus['id'], bus['bus_number'], bus['driver_name'], bus['driver_phone'], bus['capacity'], bus['status']])
+    
+    # Export routes
+    routes = conn.execute("SELECT * FROM routes").fetchall()
+    with open('backup_routes.csv', 'w', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        writer.writerow(['id', 'route_name', 'bus_id', 'original_bus_id','departure_time', 'arrival_time', 'stops'])
+        for route in routes:
+            writer.writerow([route['id'], route['route_name'], route['bus_id'], route['original_bus_id'], route['departure_time'], route['arrival_time'], route['stops']])
+    
+    # Export users (only students, exclude password and admin data)
+    users = conn.execute("SELECT * FROM users WHERE role='student'").fetchall()
+    with open('backup_users.csv', 'w', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        writer.writerow(['name', 'email', 'phone', 'route_id'])
+        for user in users:
+            writer.writerow([user['name'], user['email'], user['phone'], user['route_id']])
+
+    # Export gate_logs with bus details
+    gate_logs = conn.execute("""
+        SELECT gl.id, gl.bus_id, b.bus_number, gl.entry_type, gl.log_time
+        FROM gate_logs gl
+        LEFT JOIN buses b ON gl.bus_id = b.id
+    """).fetchall()
+    with open('backup_gate_logs.csv', 'w', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        writer.writerow(['id', 'bus_id', 'bus_number', 'entry_type', 'log_time'])
+        for log in gate_logs:
+            writer.writerow([log['id'], log['bus_id'], log['bus_number'], log['entry_type'], log['log_time']])
+    
+    conn.close()
 
 # ─── DECORATORS ────────────────────────────────────────────────────────
 def login_required(f):
@@ -187,7 +229,9 @@ def register():
             try:
                 db.execute("INSERT INTO users(name,email,password,phone,role,route_id) VALUES(?,?,?,?,?,?)",
                            (name,email,pw,phone,'student',route_id))
-                db.commit(); db.close()
+                db.commit();
+                export_to_csv()  # Backup ke liye CSV export
+                db.close()
                 flash('Registration successful! Please login.','success')
                 return redirect(url_for('student_login'))
             except sqlite3.IntegrityError:
@@ -248,7 +292,8 @@ def add_bus():
     db=get_db()
     try:
         db.execute("INSERT INTO buses(bus_number,driver_name,driver_phone,capacity) VALUES(?,?,?,?)",(bus_num,driver,phone,cap))
-        db.commit(); flash(f'Bus {bus_num} added.','success')
+        db.commit(); export_to_csv()  # Backup ke liye CSV export
+        flash(f'Bus {bus_num} added.','success')
     except sqlite3.IntegrityError:
         flash('Bus number already exists.','error')
     db.close(); return redirect(url_for('admin_dashboard')+'#buses')
@@ -256,7 +301,8 @@ def add_bus():
 @app.route('/admin/delete-bus/<int:bid>')
 @admin_required
 def delete_bus(bid):
-    db=get_db(); db.execute("DELETE FROM buses WHERE id=?",(bid,)); db.commit(); db.close()
+    db=get_db(); db.execute("DELETE FROM buses WHERE id=?",(bid,)); db.commit(); export_to_csv()  # Backup ke liye CSV export
+    db.close()
     flash('Bus deleted.','success'); return redirect(url_for('admin_dashboard')+'#buses')
 
 @app.route('/admin/add-route', methods=['POST'])
@@ -272,14 +318,16 @@ def add_route():
     db=get_db()
     db.execute("INSERT INTO routes(route_name,bus_id,start_point,end_point,departure_time,arrival_time,stops) VALUES(?,?,?,?,?,?,?)",
                (name,bus_id,start,end,dept,arr,stops))
-    db.commit(); db.close()
+    db.commit();export_to_csv()  # Backup ke liye CSV export
+    db.close()
     flash(f'Route "{name}" added.','success')
     return redirect(url_for('admin_dashboard')+'#routes')
 
 @app.route('/admin/delete-route/<int:rid>')
 @admin_required
 def delete_route(rid):
-    db=get_db(); db.execute("DELETE FROM routes WHERE id=?",(rid,)); db.commit(); db.close()
+    db=get_db(); db.execute("DELETE FROM routes WHERE id=?",(rid,)); db.commit(); export_to_csv()  # Backup ke liye CSV export
+    db.close()
     flash('Route deleted.','success')
     return redirect(url_for('admin_dashboard')+'#routes')
 
@@ -463,8 +511,9 @@ def add_gate_log():
     bus=db.execute("SELECT * FROM buses WHERE id=?", (bus_id,)).fetchone()
     if bus:
         db.execute("INSERT INTO gate_logs(bus_id,bus_number,entry_type,noted_by) VALUES(?,?,?,?)",
-                   (bus_id,bus['bus_number'],entry_type,session['name']))
-        db.commit(); flash(f'Gate log: {bus["bus_number"]} - {entry_type}','success')
+                   (bus_id,bus['bus_number'],entry_type,session['admin']['name']))
+        db.commit();export_to_csv()  # Backup ke liye CSV export
+        flash(f'Gate log: {bus["bus_number"]} - {entry_type}','success')
     db.close(); return redirect(url_for('admin_dashboard')+'#logs')
 
 # ─── STUDENTS LIST (Data Display Page) ────────────────────────────────
@@ -521,6 +570,7 @@ def students_list():
 @admin_required
 def delete_student(uid):
     db=get_db(); db.execute("DELETE FROM users WHERE id=? AND role='student'",(uid,)); db.commit(); db.close()
+    export_to_csv()  # Backup ke liye CSV export
     flash('Student removed.','success'); return redirect(url_for('students_list'))
 
 # ─── GATE LOGS PAGE (Data Display Page) ───────────────────────────────
@@ -537,11 +587,7 @@ def gate_logs_page():
 @app.route('/admin/fix-routes')
 @admin_required
 def fix_routes():
-    """
-    Agar kisi route ki bus galat assign ho gayi ho to yeh route
-    use uski original bus pe wapas le jaata hai.
-    Seed data ke according: Route A->1, Route B->2, Route C->3
-    """
+    
     db = get_db()
     # Har route ka original (seed) bus restore karo
     seed = db.execute("SELECT * FROM routes ORDER BY id").fetchall()
