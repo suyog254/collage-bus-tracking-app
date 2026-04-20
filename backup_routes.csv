@@ -1,4 +1,3 @@
 id,route_name,bus_id,original_bus_id,departure_time,arrival_time,stops
-1,Route A - Vijay Nagar,1,,07:30,08:15,Vijay Nagar → Scheme 54 → Palasia → CDIPS
-3,Route C - Rajwada,3,,07:15,08:10,Rajwada → Sarwate → Geeta Bhawan → CDIPS
-9,Route D - Sanawat,4,,07:21,08:10,Sanawat → Balwada → Gwalu Faata → Choral → Talai Naka → Simrol Bus Stand → CDIPS
+10,Sanawad,5,,07:20,09:05,Sanawad → Balwada → Gwalu Faata → Choral → Talai Naka → Simrol Bus Stand → CDGI
+11,Mari Mata,6,,07:20,09:05,Mari Mata → Regal Square → Geeta Bhawan → Navlakha → Khandwa Naka → Teja Ji Nagar → CDGI
