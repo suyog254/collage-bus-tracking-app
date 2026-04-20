@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+{% block title %}Reports & Analytics - BusTracker{% endblock %}
+{% block content %}
+
+<div class="page">
+    <div class="page-header">
+        <div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;justify-content:space-between;">
+            <div>
+                <h1>📊 Reports & Analytics</h1>
+                <p>View system insights, filter data, and export reports</p>
+            </div>
+            <a href="{{ url_for('admin_dashboard') }}" class="back-btn">← Back to Admin</a>
+        </div>
+    </div>
+
+    <!-- ══════════════ SUMMARY STAT CARDS ══════════════ -->
+    <div class="stat-cards">
+        <div class="stat-card">
+            <div class="num" style="color:#3498db">{{ total_students }}</div>
+            <div class="lbl">Total Students</div>
+        </div>
+        <div class="stat-card">
+            <div class="num" style="color:#27ae60">{{ active_buses }}</div>
+            <div class="lbl">Active Buses</div>
+        </div>
+        <div class="stat-card">
+            <div class="num" style="color:#e74c3c">{{ inactive_buses }}</div>
+            <div class="lbl">Inactive Buses</div>
+        </div>
+        <div class="stat-card">
+            <div class="num" style="color:#f39c12">{{ total_logs }}</div>
+            <div class="lbl">Total Gate Logs</div>
+        </div>
+        <div class="stat-card">
+            <div class="num" style="color:#8e44ad">{{ total_routes }}</div>
+            <div class="lbl">Total Routes</div>
+        </div>
+    </div>
+
+    <!-- ══════════════ CHARTS ROW ══════════════ -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;">
+
+        <!-- Bar Chart: Gate Logs Per Bus -->
+        <div class="panel" style="margin-bottom:0">
+            <h2 style="margin-bottom:16px">🚌 Gate Logs per Bus</h2>
+            <div style="position:relative;height:260px;">
+                <canvas id="barChart" role="img" aria-label="Bar chart showing gate log count per bus">
+                    Gate log counts per bus.
+                </canvas>
+            </div>
+        </div>
+
+        <!-- Pie Chart: Entry vs Exit + Bus Status -->
+        <div class="panel" style="margin-bottom:0">
+            <h2 style="margin-bottom:8px">🔒 Entry vs Exit Logs</h2>
+            <div style="display:flex;gap:16px;margin-bottom:10px;font-size:12px;color:#64748b;">
+                <span style="display:flex;align-items:center;gap:4px;">
+                    <span style="width:10px;height:10px;border-radius:2px;background:#27ae60;display:inline-block;"></span>
+                    Entry: {{ entry_count }}
+                </span>
+                <span style="display:flex;align-items:center;gap:4px;">
+                    <span style="width:10px;height:10px;border-radius:2px;background:#e74c3c;display:inline-block;"></span>
+                    Exit: {{ exit_count }}
+                </span>
+            </div>
+            <div style="position:relative;height:230px;">
+                <canvas id="pieChart" role="img" aria-label="Pie chart showing entry vs exit gate logs">
+                    Entry: {{ entry_count }}, Exit: {{ exit_count }}
+                </canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bar Chart: Route-wise Students -->
+    <div class="panel">
+        <h2 style="margin-bottom:16px">🗺️ Students per Route</h2>
+        <div style="position:relative;height:{{ [route_students|length * 44 + 60, 200]|max }}px;">
+            <canvas id="routeChart" role="img" aria-label="Horizontal bar chart showing student count per route">
+                Route-wise student distribution.
+            </canvas>
+        </div>
+    </div>
+
+    <!-- ══════════════ FILTER FORM ══════════════ -->
+    <div class="panel">
+        <h2>🔍 Filter Gate Logs</h2>
+        <form method="GET" action="{{ url_for('admin_reports') }}">
+            <div class="form-row">
+                <div class="fg">
+                    <label>From Date</label>
+                    <input type="date" name="date_from" value="{{ date_from }}">
+                </div>
+                <div class="fg">
+                    <label>To Date</label>
+                    <input type="date" name="date_to" value="{{ date_to }}">
+                </div>
+                <div class="fg">
+                    <label>Bus</label>
+                    <select name="bus_id">
+                        <option value="">All Buses</option>
+                        {% for b in buses %}
+                        <option value="{{ b.id }}" {{ 'selected' if bus_filter == b.id|string }}>{{ b.bus_number }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="fg">
+                    <label>Entry Type</label>
+                    <select name="entry_type">
+                        <option value="">All Types</option>
+                        <option value="Entry" {{ 'selected' if entry_filter == 'Entry' }}>Entry</option>
+                        <option value="Exit"  {{ 'selected' if entry_filter == 'Exit'  }}>Exit</option>
+                    </select>
+                </div>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;">
+                <button type="submit" class="btn-add" style="margin:0">🔍 Apply Filter</button>
+                <a href="{{ url_for('admin_reports') }}" class="btn-sm" style="padding:9px 18px;background:#f1f5f9;color:#374151;border-radius:8px;font-weight:600;text-decoration:none;border:1px solid #e2e8f0;">Reset</a>
+                <!-- CSV Export: filtered query forwarded as GET params -->
+                <a href="{{ url_for('export_report') }}?date_from={{ date_from }}&date_to={{ date_to }}&bus_id={{ bus_filter }}&entry_type={{ entry_filter }}"
+                   class="btn-sm"
+                   style="padding:9px 18px;background:#27ae60;color:#fff;border-radius:8px;font-weight:600;text-decoration:none;">
+                   ⬇️ Export CSV
+                </a>
+            </div>
+        </form>
+
+        <!-- Filtered Results Table -->
+        <div style="margin-top:24px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                <h2 style="margin:0;">Gate Logs Table</h2>
+                <span class="count-badge" style="background:#f1f5f9;padding:4px 12px;border-radius:20px;font-size:13px;color:#374151;font-weight:600;">
+                    {{ filtered_logs|length }} records
+                </span>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Bus Number</th>
+                        <th>Driver</th>
+                        <th>Entry Type</th>
+                        <th>Date &amp; Time</th>
+                        <th>Logged By</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for l in filtered_logs %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td><b>{{ l.bus_number }}</b></td>
+                    <td>{{ l.driver_name or '—' }}</td>
+                    <td>
+                        <span class="badge {{ 'badge-in' if l.entry_type == 'Entry' else 'badge-out' }}">
+                            {{ l.entry_type }}
+                        </span>
+                    </td>
+                    <td style="font-size:12px;">{{ l.log_time }}</td>
+                    <td>{{ l.noted_by }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" style="text-align:center;color:#94a3b8;padding:32px;">
+                        No gate logs found for selected filters.
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- Chart.js CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+// ── Data from Jinja ──────────────────────────────────────────────
+const busLabels   = {{ logs_per_bus | map(attribute='bus_number') | list | tojson }};
+const busCounts   = {{ logs_per_bus | map(attribute='log_count')  | list | tojson }};
+const entryCount  = {{ entry_count }};
+const exitCount   = {{ exit_count }};
+const routeLabels = {{ route_students | map(attribute='route_name')    | list | tojson }};
+const routeCounts = {{ route_students | map(attribute='student_count') | list | tojson }};
+
+// ── Bar Chart: Gate Logs per Bus ─────────────────────────────────
+new Chart(document.getElementById('barChart'), {
+    type: 'bar',
+    data: {
+        labels: busLabels,
+        datasets: [{
+            label: 'Gate Logs',
+            data: busCounts,
+            backgroundColor: ['#3498db','#27ae60','#f39c12','#e74c3c','#8e44ad','#1abc9c'],
+            borderRadius: 6,
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+            y: { beginAtZero: true, ticks: { stepSize: 1 } }
+        }
+    }
+});
+
+// ── Pie Chart: Entry vs Exit ─────────────────────────────────────
+new Chart(document.getElementById('pieChart'), {
+    type: 'doughnut',
+    data: {
+        labels: ['Entry', 'Exit'],
+        datasets: [{
+            data: [entryCount, exitCount],
+            backgroundColor: ['#27ae60', '#e74c3c'],
+            borderWidth: 2,
+            borderColor: '#fff',
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        cutout: '60%'
+    }
+});
+
+// ── Horizontal Bar: Students per Route ───────────────────────────
+new Chart(document.getElementById('routeChart'), {
+    type: 'bar',
+    data: {
+        labels: routeLabels,
+        datasets: [{
+            label: 'Students',
+            data: routeCounts,
+            backgroundColor: '#8e44ad',
+            borderRadius: 6,
+        }]
+    },
+    options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { beginAtZero: true, ticks: { stepSize: 1 } }
+        }
+    }
+});
+</script>
+
+<style>
+@media (max-width: 700px) {
+    #charts-row { grid-template-columns: 1fr !important; }
+}
+</style>
+
+{% endblock %}

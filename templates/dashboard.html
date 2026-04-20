@@ -24,7 +24,7 @@
             <div class="value">
                 {% if my_route %}
                     <span class="badge {{ 'badge-green' if my_route.status == 'active' else 'badge-red' }}">
-                        {{ my_route.status.upper() }}
+                        {{ my_route.status.upper() if my_route.status else 'UNKNOWN' }}
                     </span>
                 {% else %}—{% endif %}
             </div>
@@ -55,6 +55,167 @@
             </div>
         </div>
     </div>
+
+    <!-- ══════════════ LEAFLET MAP ══════════════ -->
+    <div class="panel">
+        <h2>📍 Route Map — {{ my_route.route_name }}</h2>
+        <p style="font-size:13px;color:#64748b;margin-bottom:12px;">
+            🚌 <b>{{ my_route.bus_number }}</b> &nbsp;|&nbsp;
+            👤 Driver: <b>{{ my_route.driver_name }}</b> &nbsp;|&nbsp;
+            🕐 Departs: <b>{{ my_route.departure_time }}</b>
+        </p>
+
+        <!-- Map Container -->
+        <div id="busMap" style="height:380px;border-radius:12px;border:1px solid #e2e8f0;z-index:1;"></div>
+
+        <!-- Stop list below map -->
+        <div style="margin-top:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span style="font-size:12px;color:#64748b;font-weight:600;">ROUTE STOPS:</span>
+            {% set stop_list = my_route.stops.split('→') %}
+            {% for stop in stop_list %}
+            <span style="display:inline-flex;align-items:center;gap:4px;background:#eff6ff;color:#1d4ed8;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:500;">
+                {% if loop.first %}🟢{% elif loop.last %}🏁{% else %}📍{% endif %}
+                {{ stop.strip() }}
+            </span>
+            {% if not loop.last %}
+            <span style="color:#94a3b8;font-size:12px;">→</span>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+    // ── Stop coordinates for Indore routes ──────────────────────
+    // Known stop locations in Indore (lat, lng)
+    const stopCoords = {
+        "vijay nagar":    [22.7534, 75.8937],
+        "scheme 54":      [22.7400, 75.8800],
+        "palasia":        [22.7239, 75.8676],
+        "cdips":          [22.6900, 75.8300],
+        "cdips college":  [22.6900, 75.8300],
+        "rajwada":        [22.7196, 75.8577],
+        "sarwate":        [22.7150, 75.8490],
+        "geeta bhawan":   [22.7310, 75.8720],
+        "lig colony":     [22.7350, 75.8600],
+        "tilak nagar":    [22.7280, 75.8750],
+        "indore":         [22.7196, 75.8577],
+    };
+
+    // Default center: Indore
+    var defaultLat = 22.7196, defaultLng = 75.8577;
+
+    // Parse stops from Jinja
+    var stopsRaw = {{ my_route.stops | tojson }};
+    var stopNames = stopsRaw.split('→').map(s => s.trim());
+
+    // Build coordinate array for each stop
+    var coords = [];
+    stopNames.forEach(function(name) {
+        var key = name.toLowerCase();
+        if (stopCoords[key]) {
+            coords.push({ name: name, lat: stopCoords[key][0], lng: stopCoords[key][1] });
+        } else {
+            // If stop not in dict, use Indore center with small offset
+            coords.push({ name: name, lat: defaultLat + (coords.length * 0.005), lng: defaultLng + (coords.length * 0.005) });
+        }
+    });
+
+    // ── Initialize Map ──────────────────────────────────────────
+    var centerLat = coords.length > 0 ? coords[0].lat : defaultLat;
+    var centerLng = coords.length > 0 ? coords[0].lng : defaultLng;
+
+    var map = L.map('busMap').setView([centerLat, centerLng], 13);
+
+    // OpenStreetMap tiles (free, no API key)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxZoom: 19
+    }).addTo(map);
+
+    // ── Custom Bus Icon ─────────────────────────────────────────
+    var busIcon = L.divIcon({
+        html: '<div style="font-size:28px;line-height:1;">🚌</div>',
+        iconSize: [36, 36],
+        iconAnchor: [18, 18],
+        className: ''
+    });
+
+    var startIcon = L.divIcon({
+        html: '<div style="font-size:22px;line-height:1;">🟢</div>',
+        iconSize: [28, 28],
+        iconAnchor: [14, 14],
+        className: ''
+    });
+
+    var endIcon = L.divIcon({
+        html: '<div style="font-size:22px;line-height:1;">🏁</div>',
+        iconSize: [28, 28],
+        iconAnchor: [14, 14],
+        className: ''
+    });
+
+    var stopIcon = L.divIcon({
+        html: '<div style="font-size:18px;line-height:1;">📍</div>',
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+        className: ''
+    });
+
+    // ── Add markers for each stop ───────────────────────────────
+    var latLngs = [];
+    coords.forEach(function(stop, i) {
+        var icon = (i === 0) ? startIcon : (i === coords.length - 1) ? endIcon : stopIcon;
+        var label = (i === 0) ? '🟢 START' : (i === coords.length - 1) ? '🏁 END' : '📍 Stop ' + (i);
+
+        L.marker([stop.lat, stop.lng], { icon: icon })
+         .addTo(map)
+         .bindPopup(
+            '<b>' + label + '</b><br>' + stop.name,
+            { maxWidth: 200 }
+         );
+
+        latLngs.push([stop.lat, stop.lng]);
+    });
+
+    // ── Draw route polyline ─────────────────────────────────────
+    if (latLngs.length > 1) {
+        L.polyline(latLngs, {
+            color: '#3498db',
+            weight: 4,
+            opacity: 0.8,
+            dashArray: '8, 6'
+        }).addTo(map);
+
+        // Fit map to show all stops
+        map.fitBounds(latLngs, { padding: [40, 40] });
+    }
+
+    // ── Animated bus marker on route ───────────────────────────
+    {% if my_route.status == 'active' %}
+    // Show bus icon at midpoint of route (simulate position)
+    if (coords.length >= 2) {
+        var midIndex = Math.floor(coords.length / 2);
+        var busLat = coords[midIndex].lat + 0.002;
+        var busLng = coords[midIndex].lng + 0.002;
+
+        L.marker([busLat, busLng], { icon: busIcon })
+         .addTo(map)
+         .bindPopup(
+            '<b>🚌 {{ my_route.bus_number }}</b><br>' +
+            '👤 {{ my_route.driver_name }}<br>' +
+            '📞 {{ my_route.driver_phone or "N/A" }}<br>' +
+            '<span style="color:#27ae60;font-weight:bold;">● ACTIVE</span>',
+            { maxWidth: 220 }
+         )
+         .openPopup();
+    }
+    {% endif %}
+    </script>
+
     {% else %}
     <div class="panel">
         <h2>📍 No Route Assigned</h2>

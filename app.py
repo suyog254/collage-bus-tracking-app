@@ -1,7 +1,8 @@
 import csv
+import io
 
-from flask import Flask, render_template, request, redirect, url_for, session, flash
-import sqlite3,re
+from flask import Flask, render_template, request, redirect, url_for, session, flash, make_response
+import sqlite3, re
 from functools import wraps
 
 app = Flask(__name__)
@@ -603,6 +604,141 @@ def fix_routes():
     db.commit(); db.close()
     flash(f'Routes repair complete. {fixed} route(s) fixed.', 'success')
     return redirect(url_for('admin_dashboard') + '#buses')
+
+
+# ─── ADMIN REPORTS PAGE ────────────────────────────────────────────
+@app.route('/admin/reports')
+@admin_required
+def admin_reports():
+    db = get_db()
+
+    # Filters (GET params)
+    date_from    = request.args.get('date_from', '')
+    date_to      = request.args.get('date_to', '')
+    bus_filter   = request.args.get('bus_id', '')
+    entry_filter = request.args.get('entry_type', '')
+
+    # ── Summary stats ──────────────────────────────────────────────
+    total_students  = db.execute("SELECT COUNT(*) FROM users WHERE role='student'").fetchone()[0]
+    total_buses     = db.execute("SELECT COUNT(*) FROM buses").fetchone()[0]
+    active_buses    = db.execute("SELECT COUNT(*) FROM buses WHERE status='active'").fetchone()[0]
+    inactive_buses  = total_buses - active_buses
+    total_routes    = db.execute("SELECT COUNT(*) FROM routes").fetchone()[0]
+    total_logs      = db.execute("SELECT COUNT(*) FROM gate_logs").fetchone()[0]
+
+    # ── Chart data: Gate logs per bus ──────────────────────────────
+    logs_per_bus = db.execute("""
+        SELECT b.bus_number, COUNT(gl.id) as log_count
+        FROM buses b
+        LEFT JOIN gate_logs gl ON b.id = gl.bus_id
+        GROUP BY b.id, b.bus_number
+        ORDER BY log_count DESC
+    """).fetchall()
+
+    # ── Chart data: Entry vs Exit totals ───────────────────────────
+    entry_count = db.execute("SELECT COUNT(*) FROM gate_logs WHERE entry_type='Entry'").fetchone()[0]
+    exit_count  = db.execute("SELECT COUNT(*) FROM gate_logs WHERE entry_type='Exit'").fetchone()[0]
+
+    # ── Chart data: Students per route ─────────────────────────────
+    route_students = db.execute("""
+        SELECT r.route_name, COUNT(u.id) as student_count
+        FROM routes r
+        LEFT JOIN users u ON r.id = u.route_id AND u.role = 'student'
+        GROUP BY r.id, r.route_name
+    """).fetchall()
+
+    # ── Filtered gate logs for table ───────────────────────────────
+    buses = db.execute("SELECT * FROM buses").fetchall()
+
+    q      = """SELECT gl.*, b.driver_name FROM gate_logs gl
+                LEFT JOIN buses b ON gl.bus_id = b.id WHERE 1=1"""
+    params = []
+
+    if date_from:
+        q += " AND DATE(gl.log_time) >= ?"
+        params.append(date_from)
+    if date_to:
+        q += " AND DATE(gl.log_time) <= ?"
+        params.append(date_to)
+    if bus_filter:
+        q += " AND gl.bus_id = ?"
+        params.append(bus_filter)
+    if entry_filter:
+        q += " AND gl.entry_type = ?"
+        params.append(entry_filter)
+
+    q += " ORDER BY gl.log_time DESC"
+    filtered_logs = db.execute(q, params).fetchall()
+    db.close()
+
+    return render_template('reports.html',
+        total_students  = total_students,
+        total_buses     = total_buses,
+        active_buses    = active_buses,
+        inactive_buses  = inactive_buses,
+        total_routes    = total_routes,
+        total_logs      = total_logs,
+        logs_per_bus    = logs_per_bus,
+        entry_count     = entry_count,
+        exit_count      = exit_count,
+        route_students  = route_students,
+        filtered_logs   = filtered_logs,
+        buses           = buses,
+        date_from       = date_from,
+        date_to         = date_to,
+        bus_filter      = bus_filter,
+        entry_filter    = entry_filter,
+    )
+
+# ─── EXPORT REPORT AS CSV ─────────────────────────────────────────
+@app.route('/admin/reports/export')
+@admin_required
+def export_report():
+    db = get_db()
+
+    # Same filters as reports page
+    date_from    = request.args.get('date_from', '')
+    date_to      = request.args.get('date_to', '')
+    bus_filter   = request.args.get('bus_id', '')
+    entry_filter = request.args.get('entry_type', '')
+
+    q      = """SELECT gl.id, gl.bus_number, b.driver_name, gl.entry_type,
+                       gl.log_time, gl.noted_by
+                FROM gate_logs gl
+                LEFT JOIN buses b ON gl.bus_id = b.id WHERE 1=1"""
+    params = []
+
+    if date_from:
+        q += " AND DATE(gl.log_time) >= ?"
+        params.append(date_from)
+    if date_to:
+        q += " AND DATE(gl.log_time) <= ?"
+        params.append(date_to)
+    if bus_filter:
+        q += " AND gl.bus_id = ?"
+        params.append(bus_filter)
+    if entry_filter:
+        q += " AND gl.entry_type = ?"
+        params.append(entry_filter)
+
+    q += " ORDER BY gl.log_time DESC"
+    logs = db.execute(q, params).fetchall()
+    db.close()
+
+    # Build CSV in memory
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Bus Number', 'Driver Name', 'Entry Type', 'Log Time', 'Logged By'])
+    for row in logs:
+        writer.writerow([row['bus_number'], row['driver_name'] or '',
+                         row['entry_type'], row['log_time'], row['noted_by']])
+
+    response = make_response(output.getvalue())
+    response.headers['Content-Disposition'] = 'attachment; filename=gate_logs_report.csv'
+    response.headers['Content-Type'] = 'text/csv'
+    return response
+
+
 
 
 if __name__ == '__main__':
