@@ -1,5 +1,7 @@
 import csv
 import io
+from datetime import datetime
+import pytz
 
 from flask import Flask, render_template, request, redirect, url_for, session, flash, make_response
 import sqlite3, re
@@ -527,11 +529,14 @@ def inject_notifications():
 @admin_required
 def add_gate_log():
     bus_id=request.form['bus_id']; entry_type=request.form['entry_type']
+    # ✅ Automatic IST Current Time
+    ist      = pytz.timezone('Asia/Kolkata')
+    log_time = datetime.now(ist).strftime('%d %b %Y, %I:%M:%S %p')
     db=get_db()
     bus=db.execute("SELECT * FROM buses WHERE id=?", (bus_id,)).fetchone()
     if bus:
-        db.execute("INSERT INTO gate_logs(bus_id,bus_number,entry_type,noted_by) VALUES(?,?,?,?)",
-                   (bus_id,bus['bus_number'],entry_type,session['admin']['name']))
+        db.execute("INSERT INTO gate_logs(bus_id,bus_number,entry_type,log_time,noted_by) VALUES(?,?,?,?,?)",
+                   (bus_id,bus['bus_number'],entry_type,log_time,session['admin']['name']))
         db.commit();export_to_csv()  # Backup ke liye CSV export
         flash(f'Gate log: {bus["bus_number"]} - {entry_type}','success')
     db.close(); return redirect(url_for('admin_dashboard')+'#logs')
