@@ -1,4 +1,3 @@
 id,bus_id,bus_number,entry_type,log_time
-1,1,,Entry,2026-04-20 05:49:26
-2,1,,Exit,2026-04-20 11:32:14
-3,5,Bus-01,Exit,2026-05-02 10:47:23
+4,6,Bus - 02,Exit,"02 May 2026, 04:36:24 PM"
+5,6,Bus - 02,Exit,"02 May 2026, 04:36:24 PM"
