@@ -47,6 +47,7 @@
                         <div class="fg"><label>Driver Name *</label><input type="text" name="driver_name" placeholder="Driver name" required></div>
                         <div class="fg"><label>Driver Phone</label><input type="tel" name="driver_phone" placeholder="9876543210" maxlength="10"></div>
                         <div class="fg"><label>Capacity</label><input type="number" name="capacity" value="40" min="10" max="60"></div>
+                        <div class="fg" style="width:100%"><label>Driver Address</label><input type="text" name="driver_address" placeholder="e.g. 12, Vijay Nagar, Indore"></div>
                     </div>
                     <button type="submit" class="btn-add">+ Add Bus</button>
                 </form>
@@ -60,7 +61,7 @@
                     </a>
                 </div>
                 <table>
-                    <thead><tr><th>#</th><th>Bus No.</th><th>Driver</th><th>Phone</th><th>Capacity</th><th>Status</th><th>Actions</th></tr></thead>
+                    <thead><tr><th>#</th><th>Bus No.</th><th>Driver</th><th>Phone</th><th>Address</th><th>Capacity</th><th>Status</th><th>Actions</th></tr></thead>
                     <tbody>
                     {% for b in buses %}
                     <tr>
@@ -68,6 +69,7 @@
                         <td><b>{{ b.bus_number }}</b></td>
                         <td>{{ b.driver_name }}</td>
                         <td>{{ b.driver_phone or '—' }}</td>
+                        <td style="font-size:12px;color:#64748b;max-width:160px;">{{ b.driver_address or '—' }}</td>
                         <td>{{ b.capacity }}</td>
                         <td><span class="badge {{ 'badge-green' if b.status=='active' else 'badge-red' }}">{{ b.status.upper() }}</span></td>
                         <td>
@@ -255,7 +257,7 @@
                     <a href="{{ url_for('gate_logs_page') }}" style="color:#3498db;font-weight:bold">→ View All Gate Logs</a>
                 </p>
                 <table>
-                    <thead><tr><th>#</th><th>Bus</th><th>Type</th><th>Time</th><th>Logged By</th></tr></thead>
+                    <thead><tr><th>#</th><th>Bus</th><th>Type</th><th>Time</th><th>Logged By</th><th>Action</th></tr></thead>
                     <tbody>
                     {% for l in logs %}
                     <tr>
@@ -264,9 +266,14 @@
                         <td><span class="badge {{ 'badge-in' if l.entry_type=='Entry' else 'badge-out' }}">{{ l.entry_type }}</span></td>
                         <td style="font-size:12px">{{ l.log_time }}</td>
                         <td>{{ l.noted_by }}</td>
+                        <td>
+                            <a href="{{ url_for('delete_gate_log', lid=l.id) }}"
+                               onclick="return confirm('Delete this gate log entry?')"
+                               class="btn-sm btn-danger">Delete</a>
+                        </td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:24px">No gate logs yet.</td></tr>
+                    <tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:24px">No gate logs yet.</td></tr>
                     {% endfor %}
                     </tbody>
                 </table>

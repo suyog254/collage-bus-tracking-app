@@ -21,7 +21,7 @@
         <h2>All Gate Logs (Latest First)</h2>
         <table>
             <thead>
-                <tr><th>#</th><th>Bus Number</th><th>Driver</th><th>Entry Type</th><th>Date &amp; Time</th><th>Logged By</th></tr>
+                <tr><th>#</th><th>Bus Number</th><th>Driver</th><th>Entry Type</th><th>Date &amp; Time</th><th>Logged By</th><th>Action</th></tr>
             </thead>
             <tbody>
             {% for l in logs %}
@@ -36,9 +36,14 @@
                 </td>
                 <td>{{ l.log_time }}</td>
                 <td>{{ l.noted_by }}</td>
+                <td>
+                    <a href="{{ url_for('delete_gate_log', lid=l.id) }}"
+                       onclick="return confirm('Are you sure you want to delete this gate log entry?')"
+                       class="btn-sm btn-danger">Delete</a>
+                </td>
             </tr>
             {% else %}
-            <tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:32px">No gate logs recorded yet.</td></tr>
+            <tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:32px">No gate logs recorded yet.</td></tr>
             {% endfor %}
             </tbody>
         </table>

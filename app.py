@@ -26,9 +26,14 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS buses (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         bus_number TEXT UNIQUE NOT NULL, driver_name TEXT NOT NULL,
-        driver_phone TEXT, capacity INTEGER DEFAULT 40,
+        driver_phone TEXT, driver_address TEXT, capacity INTEGER DEFAULT 40,
         status TEXT DEFAULT 'active',
         current_lat REAL DEFAULT 22.7196, current_lng REAL DEFAULT 75.8577)''')
+    # Migration: driver_address column add karo agar nahi hai
+    try:
+        c.execute("ALTER TABLE buses ADD COLUMN driver_address TEXT")
+    except Exception:
+        pass  # Column already exists
     c.execute('''CREATE TABLE IF NOT EXISTS routes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         route_name TEXT NOT NULL, bus_id INTEGER,
@@ -261,7 +266,7 @@ def dashboard():
     user = db.execute("SELECT * FROM users WHERE id=?", (session['student']['id'],)).fetchone()
     my_route = None
     if user['route_id']:
-        my_route = db.execute('''SELECT r.*,b.bus_number,b.driver_name,b.driver_phone,b.status
+        my_route = db.execute('''SELECT r.*,b.bus_number,b.driver_name,b.driver_phone,b.driver_address,b.status
                                  FROM routes r LEFT JOIN buses b ON r.bus_id=b.id
                                  WHERE r.id=?''', (user['route_id'],)).fetchone()
     all_routes = db.execute("SELECT * FROM routes").fetchall()
@@ -290,9 +295,10 @@ def admin_dashboard():
 def add_bus():
     bus_num=request.form['bus_number'].strip(); driver=request.form['driver_name'].strip()
     phone=request.form.get('driver_phone','').strip(); cap=request.form.get('capacity',40)
+    address=request.form.get('driver_address','').strip()
     db=get_db()
     try:
-        db.execute("INSERT INTO buses(bus_number,driver_name,driver_phone,capacity) VALUES(?,?,?,?)",(bus_num,driver,phone,cap))
+        db.execute("INSERT INTO buses(bus_number,driver_name,driver_phone,driver_address,capacity) VALUES(?,?,?,?,?)",(bus_num,driver,phone,address,cap))
         db.commit(); export_to_csv()  # Backup ke liye CSV export
         flash(f'Bus {bus_num} added.','success')
     except sqlite3.IntegrityError:
@@ -305,6 +311,19 @@ def delete_bus(bid):
     db=get_db(); db.execute("DELETE FROM buses WHERE id=?",(bid,)); db.commit(); export_to_csv()  # Backup ke liye CSV export
     db.close()
     flash('Bus deleted.','success'); return redirect(url_for('admin_dashboard')+'#buses')
+
+@app.route('/admin/delete-gate-log/<int:lid>')
+@admin_required
+def delete_gate_log(lid):
+    db = get_db()
+    db.execute("DELETE FROM gate_logs WHERE id=?", (lid,))
+    db.commit(); db.close()
+    flash('Gate log entry deleted.', 'success')
+    # Referrer check: agar gate_logs page se aaye to wahi return karo
+    ref = request.referrer or ''
+    if 'gate-logs' in ref:
+        return redirect(url_for('gate_logs_page'))
+    return redirect(url_for('admin_dashboard') + '#logs')
 
 @app.route('/admin/add-route', methods=['POST'])
 @admin_required
@@ -625,6 +644,7 @@ def admin_reports():
     inactive_buses  = total_buses - active_buses
     total_routes    = db.execute("SELECT COUNT(*) FROM routes").fetchone()[0]
     total_logs      = db.execute("SELECT COUNT(*) FROM gate_logs").fetchone()[0]
+    total_drivers   = db.execute("SELECT COUNT(*) FROM buses").fetchone()[0]  # har bus ka ek driver
 
     # ── Chart data: Gate logs per bus ──────────────────────────────
     logs_per_bus = db.execute("""
@@ -688,6 +708,7 @@ def admin_reports():
         date_to         = date_to,
         bus_filter      = bus_filter,
         entry_filter    = entry_filter,
+        total_drivers   = total_drivers,
     )
 
 # ─── EXPORT REPORT AS CSV ─────────────────────────────────────────
@@ -736,6 +757,41 @@ def export_report():
     response = make_response(output.getvalue())
     response.headers['Content-Disposition'] = 'attachment; filename=gate_logs_report.csv'
     response.headers['Content-Type'] = 'text/csv'
+    return response
+
+
+# ─── EXPORT DRIVERS BACKUP CSV ────────────────────────────────────
+@app.route('/admin/reports/export-drivers')
+@admin_required
+def export_drivers():
+    """Driver ka alag backup CSV — name, phone, address"""
+    from datetime import datetime
+
+    db = get_db()
+    buses = db.execute('''
+        SELECT bus_number, driver_name, driver_phone, driver_address, capacity, status
+        FROM buses
+        ORDER BY bus_number
+    ''').fetchall()
+    db.close()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Bus Number', 'Driver Name', 'Driver Phone', 'Driver Address', 'Bus Capacity', 'Bus Status'])
+    for b in buses:
+        writer.writerow([
+            b['bus_number']     or '',
+            b['driver_name']    or '',
+            b['driver_phone']   or '',
+            b['driver_address'] or '',
+            b['capacity']       or '',
+            b['status']         or ''
+        ])
+
+    filename = f"driver_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    response = make_response(output.getvalue())
+    response.headers['Content-Type']        = 'text/csv; charset=utf-8'
+    response.headers['Content-Disposition'] = f'attachment; filename={filename}'
     return response
 
 
