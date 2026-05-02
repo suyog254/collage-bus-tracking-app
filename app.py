@@ -3,7 +3,7 @@ import io
 from datetime import datetime
 import pytz
 
-from flask import Flask, render_template, request, redirect, url_for, session, flash, make_response
+from flask import Flask, render_template, request, redirect, url_for, session, flash, make_response, jsonify
 import sqlite3, re
 from functools import wraps
 
@@ -36,6 +36,15 @@ def init_db():
         c.execute("ALTER TABLE buses ADD COLUMN driver_address TEXT")
     except Exception:
         pass  # Column already exists
+    # Migration: GPS columns add karo agar nahi hain
+    try:
+        c.execute("ALTER TABLE buses ADD COLUMN current_lat REAL DEFAULT 22.7196")
+    except Exception:
+        pass
+    try:
+        c.execute("ALTER TABLE buses ADD COLUMN current_lng REAL DEFAULT 75.8577")
+    except Exception:
+        pass
     c.execute('''CREATE TABLE IF NOT EXISTS routes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         route_name TEXT NOT NULL, bus_id INTEGER,
@@ -802,5 +811,71 @@ def export_drivers():
 
 
 
+
+
+# ─── GPS TRACKING: DRIVER PAGE ────────────────────────────────────────
+# Admin yeh URL driver ko WhatsApp karta hai: /driver/track/1  (1 = bus.id)
+@app.route('/driver/track/<int:bus_id>')
+def driver_tracking(bus_id):
+    db  = get_db()
+    bus = db.execute("SELECT * FROM buses WHERE id=?", (bus_id,)).fetchone()
+    db.close()
+    if not bus:
+        flash('Bus not found.', 'error')
+        return redirect(url_for('home'))
+    return render_template('driver_tracking.html', bus=bus)
+
+
+# ─── GPS API: DRIVER → SERVER (location update) ────────────────────────
+# Driver ka phone har 5 sec mein yahan POST karta hai
+@app.route('/api/update-location', methods=['POST'])
+def update_location():
+    data   = request.get_json()
+    bus_id = data.get('bus_id')
+    lat    = data.get('lat')
+    lng    = data.get('lng')
+    if not bus_id or lat is None or lng is None:
+        return jsonify({'status': 'error', 'msg': 'Missing data'}), 400
+    db = get_db()
+    db.execute("UPDATE buses SET current_lat=?, current_lng=? WHERE id=?",
+               (lat, lng, bus_id))
+    db.commit(); db.close()
+    return jsonify({'status': 'ok', 'lat': lat, 'lng': lng})
+
+
+# ─── GPS API: SERVER → STUDENT (live location fetch) ──────────────────
+# Student ka dashboard yahan se har 5 sec mein bus location leta hai
+@app.route('/api/bus-location/<int:bus_id>')
+def bus_location(bus_id):
+    db  = get_db()
+    bus = db.execute(
+        "SELECT id, bus_number, driver_name, status, current_lat, current_lng FROM buses WHERE id=?",
+        (bus_id,)
+    ).fetchone()
+    db.close()
+    if not bus:
+        return jsonify({'status': 'error', 'msg': 'Bus not found'}), 404
+    return jsonify({
+        'status'     : 'ok',
+        'bus_id'     : bus['id'],
+        'bus_number' : bus['bus_number'],
+        'driver_name': bus['driver_name'],
+        'bus_status' : bus['status'],
+        'lat'        : bus['current_lat']  or 22.7196,
+        'lng'        : bus['current_lng']  or 75.8577,
+    })
+
+
+# ─── GPS API: ADMIN — Sabhi buses ki live location ────────────────────
+@app.route('/api/all-buses-location')
+@admin_required
+def all_buses_location():
+    db    = get_db()
+    buses = db.execute(
+        "SELECT id, bus_number, driver_name, status, current_lat, current_lng FROM buses"
+    ).fetchall()
+    db.close()
+    return jsonify([dict(b) for b in buses])
+
 if __name__ == '__main__':
-    init_db(); app.run(debug=True, port=5000)
+    init_db(); app.run(debug=True, port=5000, host='0.0.0.0')
