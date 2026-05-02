@@ -1,0 +1,11 @@
+id,bus_number,driver_name,driver_phone,capacity,status
+5,Bus-01,Jitendra Singh,1234567890,40,active
+6,Bus - 02,Vinod Kumar,2345789123,40,active
+7,Bus-03,Salim Khan,6543217897,40,active
+8,Bus-04,Raman Chore,9876543210,40,active
+9,Bus-05,Rajendra Patel,8976432135,40,active
+10,Bus-06,Sanjay Pawar,9776645443,40,active
+11,Bus-07,Bablu Singh,9087432167,40,active
+12,Bus-08,Ramu Kher,5643217890,40,active
+13,BUS-08,Mahesh Singh,9876543216,40,active
+14,BUS-10,Amit Verma,9876543217,40,active
