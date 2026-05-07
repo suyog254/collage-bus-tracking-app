@@ -1,1 +1,4 @@
 id,bus_number,driver_name,driver_phone,capacity,status
+16,BUS-01,Ramesh Kumar,9876543210,40,active
+17,BUS-02,Suresh Patel,9876543211,45,active
+18,BUS-03,Mahesh Singh,9876543212,40,active
