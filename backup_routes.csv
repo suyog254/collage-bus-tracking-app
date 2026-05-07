@@ -1,7 +1,1 @@
 id,route_name,bus_id,original_bus_id,departure_time,arrival_time,stops
-10,Sanawad,5,,07:20,09:05,Sanawad → Balwada → Gwalu Faata → Choral → Talai Naka → Simrol Bus Stand → CDGI
-11,Mari Mata,6,,07:20,09:05,Mari Mata → Regal Square → Geeta Bhawan → Navlakha → Khandwa Naka → Teja Ji Nagar → CDGI
-12,Dhar,7,,07:20,09:05,Dhar → Indore Naka → Betma → Rangwasa → Kanha Park → Railway Bridge → Rau Circle → CDGI
-13,Paliya,8,,07:20,09:05,Paliya → Rajwada → Collector Office → Tower Square → Apple Hospital → Bhawar Kua → CDGI
-14,Bombay Hospital,9,,07:20,09:05,Bombay Hospital → City Bus Stop → Musakhedi → Pink City → Pipalyahana → CDGI
-16,Pardeshi Pura,16,,07:20,09:05,Pardeshi Pura → Palasia → Bengali Square → Police Line → Blue Water Park → Bicholi Bridge → CDGI
