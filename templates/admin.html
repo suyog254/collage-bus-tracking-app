@@ -79,13 +79,6 @@
                             <a href="{{ url_for('bus_status', bid=b.id, status='active') }}" class="btn-sm btn-success">Activate</a>
                             {% endif %}
                             <a href="{{ url_for('delete_bus', bid=b.id) }}" class="btn-sm btn-danger">Delete</a>
-                            <a href="{{ url_for('driver_tracking', bus_id=b.id) }}"
-                               class="btn-sm"
-                               style="background:#7c3aed;color:#fff;border:none;margin-top:4px;display:inline-block;"
-                               target="_blank"
-                               title="Yeh link driver ko WhatsApp karo">
-                               📍 Driver Link
-                            </a>
                         </td>
                     </tr>
                     {% else %}
