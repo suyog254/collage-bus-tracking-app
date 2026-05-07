@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% block title %}Driver GPS Tracking - {{ bus.bus_number }}{% endblock %}
+{% block content %}
+
+<div class="page" style="max-width:480px;margin:0 auto;">
+
+    <!-- Header -->
+    <div style="text-align:center;padding:24px 16px 0;">
+        <div style="font-size:56px;margin-bottom:8px;">🚌</div>
+        <h1 style="font-size:22px;margin:0 0 4px;">{{ bus.bus_number }}</h1>
+        <p style="color:#64748b;margin:0;">Driver: <b>{{ bus.driver_name }}</b></p>
+    </div>
+
+    <!-- Status Card -->
+    <div id="status-card" style="
+        margin:24px 16px;
+        padding:20px;
+        border-radius:16px;
+        background:#f1f5f9;
+        border:2px solid #e2e8f0;
+        text-align:center;
+        transition:all 0.3s;
+    ">
+        <div id="status-icon" style="font-size:36px;margin-bottom:8px;">📍</div>
+        <div id="status-text" style="font-weight:700;font-size:16px;color:#374151;">
+            GPS Ready — Start karo
+        </div>
+        <div id="coords-text" style="font-size:13px;color:#94a3b8;margin-top:6px;">
+            Location share nahi ho rahi
+        </div>
+        <div id="last-update" style="font-size:12px;color:#94a3b8;margin-top:4px;"></div>
+    </div>
+
+    <!-- BIG START / STOP BUTTON -->
+    <div style="margin:0 16px 16px;display:flex;gap:12px;">
+        <button id="btn-start" onclick="startTracking()" style="
+            flex:1;padding:18px;font-size:18px;font-weight:700;
+            background:#22c55e;color:#fff;border:none;border-radius:14px;
+            cursor:pointer;box-shadow:0 4px 14px rgba(34,197,94,0.35);
+            transition:all 0.2s;
+        ">▶ Tracking Start</button>
+
+        <button id="btn-stop" onclick="stopTracking()" style="
+            flex:1;padding:18px;font-size:18px;font-weight:700;
+            background:#ef4444;color:#fff;border:none;border-radius:14px;
+            cursor:pointer;box-shadow:0 4px 14px rgba(239,68,68,0.35);
+            display:none;transition:all 0.2s;
+        ">⏹ Stop</button>
+    </div>
+
+    <!-- Instructions -->
+    <div class="panel" style="margin:0 16px 24px;">
+        <h2 style="font-size:15px;margin-bottom:12px;">📋 Driver ke liye Instructions</h2>
+        <div style="font-size:13px;color:#374151;line-height:1.8;">
+            <div>✅ Apne phone pe yeh page kholo</div>
+            <div>✅ <b>"Tracking Start"</b> button dabao</div>
+            <div>✅ Browser GPS permission dedo <b>(Allow karein)</b></div>
+            <div>✅ Phone screen band mat karo — background mein chalti rahegi</div>
+            <div>✅ Route khatam hone pe <b>"Stop"</b> dabao</div>
+        </div>
+        <div style="margin-top:12px;padding:10px 14px;background:#fef9c3;border-radius:10px;border:1px solid #fde047;font-size:12px;color:#854d0e;">
+            ⚠️ Location share hone ke liye <b>Internet + GPS ON</b> hona chahiye
+        </div>
+    </div>
+
+    <!-- Live Map (small preview) -->
+    <div class="panel" style="margin:0 16px 32px;">
+        <h2 style="font-size:15px;margin-bottom:10px;">📍 Aapki Live Location</h2>
+        <div id="driverMap" style="height:240px;border-radius:12px;border:1px solid #e2e8f0;"></div>
+    </div>
+
+</div>
+
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+const BUS_ID    = {{ bus.id }};
+const API_URL   = '/api/update-location';
+const INTERVAL  = 5000; // 5 seconds
+
+let trackInterval = null;
+let driverMap     = null;
+let driverMarker  = null;
+
+// ── Map init ────────────────────────────────────────────────
+window.addEventListener('load', function() {
+    driverMap = L.map('driverMap').setView([22.7196, 75.8577], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap',
+        maxZoom: 19
+    }).addTo(driverMap);
+});
+
+// ── Start tracking ───────────────────────────────────────────
+function startTracking() {
+    if (!navigator.geolocation) {
+        setStatus('error', '❌', 'GPS support nahi hai is browser mein', '');
+        return;
+    }
+
+    setStatus('loading', '📡', 'GPS signal dhundh raha hai...', '');
+
+    // Pehle ek baar turant lo, phir interval
+    sendLocation();
+    trackInterval = setInterval(sendLocation, INTERVAL);
+
+    document.getElementById('btn-start').style.display = 'none';
+    document.getElementById('btn-stop').style.display  = '';
+}
+
+// ── Stop tracking ────────────────────────────────────────────
+function stopTracking() {
+    clearInterval(trackInterval);
+    trackInterval = null;
+    setStatus('idle', '⏸️', 'Tracking band hai', '');
+    document.getElementById('btn-start').style.display = '';
+    document.getElementById('btn-stop').style.display  = 'none';
+}
+
+// ── Get GPS + Send to server ─────────────────────────────────
+function sendLocation() {
+    navigator.geolocation.getCurrentPosition(
+        function(pos) {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            const acc = Math.round(pos.coords.accuracy);
+
+            // Update map marker
+            updateMapMarker(lat, lng);
+
+            // Send to server
+            fetch(API_URL, {
+                method : 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body   : JSON.stringify({ bus_id: BUS_ID, lat: lat, lng: lng })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    const now = new Date().toLocaleTimeString('hi-IN');
+                    setStatus(
+                        'active',
+                        '🟢',
+                        'Live Tracking ON',
+                        `📍 ${lat.toFixed(5)}, ${lng.toFixed(5)}  |  Accuracy: ${acc}m`,
+                        `Last update: ${now}`
+                    );
+                }
+            })
+            .catch(err => {
+                setStatus('error', '🔴', 'Server se connection fail', 'Internet check karo');
+            });
+        },
+        function(err) {
+            let msg = 'GPS error';
+            if (err.code === 1) msg = 'GPS permission denied — browser settings mein Allow karo';
+            if (err.code === 2) msg = 'GPS signal nahi mila — bahar jao ya GPS ON karo';
+            if (err.code === 3) msg = 'GPS timeout — dobara try karo';
+            setStatus('error', '❌', msg, '');
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+}
+
+// ── Map marker update ────────────────────────────────────────
+function updateMapMarker(lat, lng) {
+    if (!driverMap) return;
+
+    var busIcon = L.divIcon({
+        html: '<div style="font-size:32px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3))">🚌</div>',
+        iconSize : [36, 36],
+        iconAnchor: [18, 18],
+        className: ''
+    });
+
+    if (driverMarker) {
+        driverMarker.setLatLng([lat, lng]);
+    } else {
+        driverMarker = L.marker([lat, lng], { icon: busIcon })
+            .addTo(driverMap)
+            .bindPopup('<b>{{ bus.bus_number }}</b><br>{{ bus.driver_name }}<br>🟢 LIVE');
+    }
+    driverMap.setView([lat, lng], 15);
+}
+
+// ── Status card update ───────────────────────────────────────
+function setStatus(type, icon, text, coords, lastUpdate) {
+    const card   = document.getElementById('status-card');
+    const colors = {
+        active : { bg:'#f0fdf4', border:'#86efac' },
+        loading: { bg:'#fffbeb', border:'#fde68a' },
+        error  : { bg:'#fef2f2', border:'#fecaca' },
+        idle   : { bg:'#f1f5f9', border:'#e2e8f0' },
+    };
+    const c = colors[type] || colors.idle;
+    card.style.background   = c.bg;
+    card.style.borderColor  = c.border;
+    document.getElementById('status-icon').textContent  = icon;
+    document.getElementById('status-text').textContent  = text;
+    document.getElementById('coords-text').textContent  = coords || '';
+    document.getElementById('last-update').textContent  = lastUpdate || '';
+}
+</script>
+
+{% endblock %}

@@ -1,7 +1,9 @@
 import csv
 import io
+from datetime import datetime
+import pytz
 
-from flask import Flask, render_template, request, redirect, url_for, session, flash, make_response
+from flask import Flask, render_template, request, redirect, url_for, session, flash, make_response, jsonify
 import sqlite3, re
 from functools import wraps
 
@@ -26,9 +28,23 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS buses (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         bus_number TEXT UNIQUE NOT NULL, driver_name TEXT NOT NULL,
-        driver_phone TEXT, capacity INTEGER DEFAULT 40,
+        driver_phone TEXT, driver_address TEXT, capacity INTEGER DEFAULT 40,
         status TEXT DEFAULT 'active',
         current_lat REAL DEFAULT 22.7196, current_lng REAL DEFAULT 75.8577)''')
+    # Migration: driver_address column add karo agar nahi hai
+    try:
+        c.execute("ALTER TABLE buses ADD COLUMN driver_address TEXT")
+    except Exception:
+        pass  # Column already exists
+    # Migration: GPS columns add karo agar nahi hain
+    try:
+        c.execute("ALTER TABLE buses ADD COLUMN current_lat REAL DEFAULT 22.7196")
+    except Exception:
+        pass
+    try:
+        c.execute("ALTER TABLE buses ADD COLUMN current_lng REAL DEFAULT 75.8577")
+    except Exception:
+        pass
     c.execute('''CREATE TABLE IF NOT EXISTS routes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         route_name TEXT NOT NULL, bus_id INTEGER,
@@ -261,7 +277,7 @@ def dashboard():
     user = db.execute("SELECT * FROM users WHERE id=?", (session['student']['id'],)).fetchone()
     my_route = None
     if user['route_id']:
-        my_route = db.execute('''SELECT r.*,b.bus_number,b.driver_name,b.driver_phone,b.status
+        my_route = db.execute('''SELECT r.*,b.bus_number,b.driver_name,b.driver_phone,b.driver_address,b.status
                                  FROM routes r LEFT JOIN buses b ON r.bus_id=b.id
                                  WHERE r.id=?''', (user['route_id'],)).fetchone()
     all_routes = db.execute("SELECT * FROM routes").fetchall()
@@ -290,9 +306,10 @@ def admin_dashboard():
 def add_bus():
     bus_num=request.form['bus_number'].strip(); driver=request.form['driver_name'].strip()
     phone=request.form.get('driver_phone','').strip(); cap=request.form.get('capacity',40)
+    address=request.form.get('driver_address','').strip()
     db=get_db()
     try:
-        db.execute("INSERT INTO buses(bus_number,driver_name,driver_phone,capacity) VALUES(?,?,?,?)",(bus_num,driver,phone,cap))
+        db.execute("INSERT INTO buses(bus_number,driver_name,driver_phone,driver_address,capacity) VALUES(?,?,?,?,?)",(bus_num,driver,phone,address,cap))
         db.commit(); export_to_csv()  # Backup ke liye CSV export
         flash(f'Bus {bus_num} added.','success')
     except sqlite3.IntegrityError:
@@ -305,6 +322,19 @@ def delete_bus(bid):
     db=get_db(); db.execute("DELETE FROM buses WHERE id=?",(bid,)); db.commit(); export_to_csv()  # Backup ke liye CSV export
     db.close()
     flash('Bus deleted.','success'); return redirect(url_for('admin_dashboard')+'#buses')
+
+@app.route('/admin/delete-gate-log/<int:lid>')
+@admin_required
+def delete_gate_log(lid):
+    db = get_db()
+    db.execute("DELETE FROM gate_logs WHERE id=?", (lid,))
+    db.commit(); db.close()
+    flash('Gate log entry deleted.', 'success')
+    # Referrer check: agar gate_logs page se aaye to wahi return karo
+    ref = request.referrer or ''
+    if 'gate-logs' in ref:
+        return redirect(url_for('gate_logs_page'))
+    return redirect(url_for('admin_dashboard') + '#logs')
 
 @app.route('/admin/add-route', methods=['POST'])
 @admin_required
@@ -508,11 +538,14 @@ def inject_notifications():
 @admin_required
 def add_gate_log():
     bus_id=request.form['bus_id']; entry_type=request.form['entry_type']
+    # ✅ Automatic IST Current Time
+    ist      = pytz.timezone('Asia/Kolkata')
+    log_time = datetime.now(ist).strftime('%d %b %Y, %I:%M:%S %p')
     db=get_db()
     bus=db.execute("SELECT * FROM buses WHERE id=?", (bus_id,)).fetchone()
     if bus:
-        db.execute("INSERT INTO gate_logs(bus_id,bus_number,entry_type,noted_by) VALUES(?,?,?,?)",
-                   (bus_id,bus['bus_number'],entry_type,session['admin']['name']))
+        db.execute("INSERT INTO gate_logs(bus_id,bus_number,entry_type,log_time,noted_by) VALUES(?,?,?,?,?)",
+                   (bus_id,bus['bus_number'],entry_type,log_time,session['admin']['name']))
         db.commit();export_to_csv()  # Backup ke liye CSV export
         flash(f'Gate log: {bus["bus_number"]} - {entry_type}','success')
     db.close(); return redirect(url_for('admin_dashboard')+'#logs')
@@ -625,6 +658,7 @@ def admin_reports():
     inactive_buses  = total_buses - active_buses
     total_routes    = db.execute("SELECT COUNT(*) FROM routes").fetchone()[0]
     total_logs      = db.execute("SELECT COUNT(*) FROM gate_logs").fetchone()[0]
+    total_drivers   = db.execute("SELECT COUNT(*) FROM buses").fetchone()[0]  # har bus ka ek driver
 
     # ── Chart data: Gate logs per bus ──────────────────────────────
     logs_per_bus = db.execute("""
@@ -688,6 +722,7 @@ def admin_reports():
         date_to         = date_to,
         bus_filter      = bus_filter,
         entry_filter    = entry_filter,
+        total_drivers   = total_drivers,
     )
 
 # ─── EXPORT REPORT AS CSV ─────────────────────────────────────────
@@ -739,7 +774,108 @@ def export_report():
     return response
 
 
+# ─── EXPORT DRIVERS BACKUP CSV ────────────────────────────────────
+@app.route('/admin/reports/export-drivers')
+@admin_required
+def export_drivers():
+    """Driver ka alag backup CSV — name, phone, address"""
+    from datetime import datetime
 
+    db = get_db()
+    buses = db.execute('''
+        SELECT bus_number, driver_name, driver_phone, driver_address, capacity, status
+        FROM buses
+        ORDER BY bus_number
+    ''').fetchall()
+    db.close()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Bus Number', 'Driver Name', 'Driver Phone', 'Driver Address', 'Bus Capacity', 'Bus Status'])
+    for b in buses:
+        writer.writerow([
+            b['bus_number']     or '',
+            b['driver_name']    or '',
+            b['driver_phone']   or '',
+            b['driver_address'] or '',
+            b['capacity']       or '',
+            b['status']         or ''
+        ])
+
+    filename = f"driver_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    response = make_response(output.getvalue())
+    response.headers['Content-Type']        = 'text/csv; charset=utf-8'
+    response.headers['Content-Disposition'] = f'attachment; filename={filename}'
+    return response
+
+
+
+
+
+
+# ─── GPS TRACKING: DRIVER PAGE ────────────────────────────────────────
+# Admin yeh URL driver ko WhatsApp karta hai: /driver/track/1  (1 = bus.id)
+@app.route('/driver/track/<int:bus_id>')
+def driver_tracking(bus_id):
+    db  = get_db()
+    bus = db.execute("SELECT * FROM buses WHERE id=?", (bus_id,)).fetchone()
+    db.close()
+    if not bus:
+        flash('Bus not found.', 'error')
+        return redirect(url_for('home'))
+    return render_template('driver_tracking.html', bus=bus)
+
+
+# ─── GPS API: DRIVER → SERVER (location update) ────────────────────────
+# Driver ka phone har 5 sec mein yahan POST karta hai
+@app.route('/api/update-location', methods=['POST'])
+def update_location():
+    data   = request.get_json()
+    bus_id = data.get('bus_id')
+    lat    = data.get('lat')
+    lng    = data.get('lng')
+    if not bus_id or lat is None or lng is None:
+        return jsonify({'status': 'error', 'msg': 'Missing data'}), 400
+    db = get_db()
+    db.execute("UPDATE buses SET current_lat=?, current_lng=? WHERE id=?",
+               (lat, lng, bus_id))
+    db.commit(); db.close()
+    return jsonify({'status': 'ok', 'lat': lat, 'lng': lng})
+
+
+# ─── GPS API: SERVER → STUDENT (live location fetch) ──────────────────
+# Student ka dashboard yahan se har 5 sec mein bus location leta hai
+@app.route('/api/bus-location/<int:bus_id>')
+def bus_location(bus_id):
+    db  = get_db()
+    bus = db.execute(
+        "SELECT id, bus_number, driver_name, status, current_lat, current_lng FROM buses WHERE id=?",
+        (bus_id,)
+    ).fetchone()
+    db.close()
+    if not bus:
+        return jsonify({'status': 'error', 'msg': 'Bus not found'}), 404
+    return jsonify({
+        'status'     : 'ok',
+        'bus_id'     : bus['id'],
+        'bus_number' : bus['bus_number'],
+        'driver_name': bus['driver_name'],
+        'bus_status' : bus['status'],
+        'lat'        : bus['current_lat']  or 22.7196,
+        'lng'        : bus['current_lng']  or 75.8577,
+    })
+
+
+# ─── GPS API: ADMIN — Sabhi buses ki live location ────────────────────
+@app.route('/api/all-buses-location')
+@admin_required
+def all_buses_location():
+    db    = get_db()
+    buses = db.execute(
+        "SELECT id, bus_number, driver_name, status, current_lat, current_lng FROM buses"
+    ).fetchall()
+    db.close()
+    return jsonify([dict(b) for b in buses])
 
 if __name__ == '__main__':
-    init_db(); app.run(debug=True, port=5000)
+    init_db(); app.run(debug=True, port=5000, host='0.0.0.0')

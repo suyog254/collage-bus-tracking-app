@@ -4,4 +4,4 @@ id,route_name,bus_id,original_bus_id,departure_time,arrival_time,stops
 12,Dhar,7,,07:20,09:05,Dhar → Indore Naka → Betma → Rangwasa → Kanha Park → Railway Bridge → Rau Circle → CDGI
 13,Paliya,8,,07:20,09:05,Paliya → Rajwada → Collector Office → Tower Square → Apple Hospital → Bhawar Kua → CDGI
 14,Bombay Hospital,9,,07:20,09:05,Bombay Hospital → City Bus Stop → Musakhedi → Pink City → Pipalyahana → CDGI
-15,Pardeshi Pura,10,,07:20,09:05,Pardeshi Pura → Palasia → Bengali Square → Police Line → Blue Water Park → Bicholi Bridge → CDGI
+16,Pardeshi Pura,16,,07:20,09:05,Pardeshi Pura → Palasia → Bengali Square → Police Line → Blue Water Park → Bicholi Bridge → CDGI
