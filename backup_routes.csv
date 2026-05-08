@@ -1,1 +1,5 @@
-id,route_name,bus_id,original_bus_id,departure_time,arrival_time,stops
+route_name,bus_id,original_bus_id,departure_time,arrival_time,stops
+Route A - Vijay Nagar,1,,07:30,08:15,Vijay Nagar → Scheme 54 → Palasia → CDIPS
+Route B - Palasia,2,,07:45,08:20,Palasia → LIG Colony → Tilak Nagar → CDIPS
+Route C - Rajwada,3,,07:15,08:10,Rajwada → Sarwate → Geeta Bhawan → CDIPS
+Route A - Sanawat,20,,07:51,08:04,Sanawat → Balwada → Gwalu Faata → Choral → Talai Naka → Simrol Bus Stand → CDIPS
