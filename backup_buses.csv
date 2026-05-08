@@ -1,11 +1,4 @@
 id,bus_number,driver_name,driver_phone,capacity,status
-20,BUS-01,Suresh Patel,8907654321,40,active
-21,BUS-02,Ranjeet Pawar,6543218907,40,active
-22,BUS-03,Ajay Varma,3421356789,40,active
-23,BUS-04,Ramesh Kumar,6765453655,40,active
-24,BUS-05,Ajju Singh,7643321989,40,active
-25,BUS-06,Rashid Khan,8976543216,40,active
-26,BUS-07,Jagdish Pal,8976789543,40,active
-27,BUS-08,Kamal Singh,3456789904,40,active
-28,BUS-09,Bhagat Kumar,7865432456,40,active
-29,BUS-10,Ravi Singh,6543235789,40,active
+17,BUS-01,Ramesh Kumar,9876543210,40,active
+18,BUS-02,Suresh Patel,9876543211,45,active
+19,BUS-03,Mahesh Singh,9876543212,40,active
