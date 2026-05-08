@@ -86,9 +86,9 @@ def export_to_csv():
     buses = conn.execute("SELECT * FROM buses").fetchall()
     with open('backup_buses.csv', 'w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
-        writer.writerow(['id', 'bus_number', 'driver_name', 'driver_phone', 'capacity', 'status'])
+        writer.writerow(['id', 'bus_number', 'driver_name', 'driver_phone','driver_address', 'capacity', 'status'])
         for bus in buses:
-            writer.writerow([bus['id'], bus['bus_number'], bus['driver_name'], bus['driver_phone'], bus['capacity'], bus['status']])
+            writer.writerow([bus['id'], bus['bus_number'], bus['driver_name'], bus['driver_phone'], bus['driver_address'], bus['capacity'], bus['status']])
     
     # Export routes
     routes = conn.execute("SELECT * FROM routes").fetchall()
