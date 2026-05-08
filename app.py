@@ -86,17 +86,17 @@ def export_to_csv():
     buses = conn.execute("SELECT * FROM buses").fetchall()
     with open('backup_buses.csv', 'w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
-        writer.writerow(['id', 'bus_number', 'driver_name', 'driver_phone', 'capacity', 'status'])
+        writer.writerow(['id', 'bus_number', 'driver_name', 'driver_phone', "driver_address",'capacity', 'status'])
         for bus in buses:
-            writer.writerow([bus['id'], bus['bus_number'], bus['driver_name'], bus['driver_phone'], bus['capacity'], bus['status']])
+            writer.writerow([bus['id'], bus['bus_number'], bus['driver_name'], bus['driver_phone'], bus['driver_address'], bus['capacity'], bus['status']])
     
     # Export routes
     routes = conn.execute("SELECT * FROM routes").fetchall()
     with open('backup_routes.csv', 'w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
-        writer.writerow(['id', 'route_name', 'bus_id', 'original_bus_id','departure_time', 'arrival_time', 'stops'])
+        writer.writerow(['route_name', 'bus_id', 'original_bus_id','departure_time', 'arrival_time', 'stops'])
         for route in routes:
-            writer.writerow([route['id'], route['route_name'], route['bus_id'], route['original_bus_id'], route['departure_time'], route['arrival_time'], route['stops']])
+            writer.writerow([route['route_name'], route['bus_id'], route['original_bus_id'], route['departure_time'], route['arrival_time'], route['stops']])
     
     # Export users (only students, exclude password and admin data)
     users = conn.execute("SELECT * FROM users WHERE role='student'").fetchall()
