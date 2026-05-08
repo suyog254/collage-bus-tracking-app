@@ -1,2 +1,1 @@
-id,route_name,bus_id,original_bus_id,departure_time,arrival_time,stops
-28,Route A - Sanawat,20,,07:45,08:10,Sanawat → Balwada → Gwalu Faata → Choral → Talai Naka → Simrol Bus Stand → CDIPS
+id,route_name,bus_id,bus_number,departure_time,arrival_time,stops
