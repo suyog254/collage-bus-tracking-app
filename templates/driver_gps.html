@@ -1,0 +1,562 @@
+{% extends "base.html" %}
+{% block title %}Driver GPS — {{ bus.bus_number }}{% endblock %}
+{% block content %}
+
+<style>
+/* ── GPS PAGE — DRIVER MOBILE UI ────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap');
+
+.gps-page {
+    min-height: 100vh;
+    background: #0b0f1a;
+    color: #e2e8f0;
+    padding: 0 0 40px;
+    font-family: 'DM Mono', monospace;
+}
+
+/* ── TOP BUS HEADER ─────────────────────────────────── */
+.gps-header {
+    background: linear-gradient(135deg, #111827 0%, #1e2a3a 100%);
+    border-bottom: 1px solid #1e3a5f;
+    padding: 18px 20px 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+.gps-bus-icon {
+    width: 48px; height: 48px;
+    background: linear-gradient(135deg, #1d4ed8, #2563eb);
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    box-shadow: 0 4px 14px rgba(37,99,235,0.35);
+    flex-shrink: 0;
+}
+.gps-bus-info h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: 20px; font-weight: 800;
+    color: #f0f9ff; margin: 0 0 2px;
+    letter-spacing: 1px;
+}
+.gps-bus-info p {
+    font-size: 11px; color: #64748b; margin: 0;
+    letter-spacing: 0.5px;
+}
+.gps-back-btn {
+    margin-left: auto;
+    background: #1e293b; color: #94a3b8;
+    padding: 8px 14px; border-radius: 10px;
+    font-size: 12px; text-decoration: none;
+    border: 1px solid #334155;
+    font-family: 'DM Mono', monospace;
+    white-space: nowrap;
+}
+
+/* ── STATUS STRIP ───────────────────────────────────── */
+.gps-status-strip {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid #1e293b;
+}
+.status-cell {
+    flex: 1;
+    padding: 14px 12px;
+    text-align: center;
+    border-right: 1px solid #1e293b;
+}
+.status-cell:last-child { border-right: none; }
+.status-cell .sc-val {
+    font-family: 'Syne', sans-serif;
+    font-size: 15px; font-weight: 800;
+    color: #f0f9ff; display: block; margin-bottom: 3px;
+}
+.status-cell .sc-key {
+    font-size: 9px; color: #475569; text-transform: uppercase;
+    letter-spacing: 1px;
+}
+#statusDot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #374151;
+    margin-right: 5px;
+    transition: background 0.3s;
+    vertical-align: middle;
+}
+#statusDot.active { background: #22c55e; box-shadow: 0 0 8px #22c55e; animation: pulse 1.5s infinite; }
+#statusDot.error  { background: #ef4444; }
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.4; }
+}
+
+/* ── BIG TOGGLE ─────────────────────────────────────── */
+.toggle-section {
+    padding: 32px 20px 24px;
+    text-align: center;
+}
+.toggle-label {
+    font-size: 11px; color: #475569; letter-spacing: 2px;
+    text-transform: uppercase; margin-bottom: 20px;
+}
+.gps-toggle-btn {
+    width: 180px; height: 180px;
+    border-radius: 50%;
+    border: 3px solid #1e3a5f;
+    background: radial-gradient(circle at 40% 35%, #111827, #0b1220);
+    cursor: pointer;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 6px;
+    transition: all 0.35s cubic-bezier(.34,1.56,.64,1);
+    position: relative;
+    box-shadow: 0 0 0 8px rgba(30,58,95,0.25), 0 8px 32px rgba(0,0,0,0.5);
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    margin: 0 auto;
+}
+.gps-toggle-btn:active { transform: scale(0.94); }
+.gps-toggle-btn.gps-on {
+    border-color: #22c55e;
+    background: radial-gradient(circle at 40% 35%, #052e16, #0b1220);
+    box-shadow: 0 0 0 8px rgba(34,197,94,0.12), 0 0 40px rgba(34,197,94,0.18), 0 8px 32px rgba(0,0,0,0.5);
+}
+.gps-toggle-btn.gps-error {
+    border-color: #ef4444;
+    box-shadow: 0 0 0 8px rgba(239,68,68,0.12), 0 8px 32px rgba(0,0,0,0.5);
+}
+.toggle-power-icon {
+    font-size: 48px; line-height: 1;
+    transition: filter 0.3s;
+}
+.gps-on .toggle-power-icon { filter: drop-shadow(0 0 10px #22c55e); }
+.toggle-btn-text {
+    font-family: 'Syne', sans-serif;
+    font-size: 18px; font-weight: 800;
+    letter-spacing: 3px; color: #e2e8f0;
+}
+.gps-on .toggle-btn-text  { color: #86efac; }
+.gps-error .toggle-btn-text { color: #fca5a5; }
+.toggle-hint {
+    font-size: 11px; color: #334155; margin-top: 16px; letter-spacing: 0.5px;
+}
+
+/* ── COORD CARDS ────────────────────────────────────── */
+.coords-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    padding: 0 16px 20px;
+}
+.coord-card {
+    background: #111827;
+    border: 1px solid #1e293b;
+    border-radius: 14px;
+    padding: 16px 14px;
+}
+.coord-card.full { grid-column: 1 / -1; }
+.coord-card .cc-key {
+    font-size: 9px; color: #475569; letter-spacing: 2px;
+    text-transform: uppercase; margin-bottom: 8px;
+}
+.coord-card .cc-val {
+    font-family: 'DM Mono', monospace;
+    font-size: 15px; font-weight: 500; color: #38bdf8;
+    word-break: break-all;
+}
+.coord-card .cc-val.inactive { color: #334155; }
+.coord-card .cc-val.error    { color: #ef4444; }
+
+/* ── LOG FEED ───────────────────────────────────────── */
+.log-section {
+    padding: 0 16px;
+    margin-bottom: 20px;
+}
+.log-section h3 {
+    font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
+    color: #475569; margin: 0 0 10px;
+}
+.log-feed {
+    background: #0b1220;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+    padding: 12px;
+    max-height: 150px;
+    overflow-y: auto;
+    font-size: 11px;
+    color: #334155;
+}
+.log-line { padding: 3px 0; border-bottom: 1px solid #0f172a; line-height: 1.5; }
+.log-line:last-child { border-bottom: none; }
+.log-line.ok   { color: #22c55e; }
+.log-line.err  { color: #ef4444; }
+.log-line.info { color: #38bdf8; }
+.log-ts { color: #374151; margin-right: 6px; }
+
+/* ── MAP ────────────────────────────────────────────── */
+.map-section { padding: 0 16px; }
+.map-section h3 {
+    font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
+    color: #475569; margin: 0 0 10px;
+}
+#driverMap {
+    height: 260px;
+    border-radius: 14px;
+    border: 1px solid #1e293b;
+    overflow: hidden;
+}
+
+/* ── SEND INTERVAL ──────────────────────────────────── */
+.interval-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 16px 0;
+    font-size: 12px; color: #475569;
+}
+.interval-row select {
+    background: #111827; color: #94a3b8;
+    border: 1px solid #1e293b; border-radius: 8px;
+    padding: 6px 10px; font-family: 'DM Mono', monospace;
+    font-size: 12px;
+}
+</style>
+
+<div class="gps-page">
+
+    <!-- Header -->
+    <div class="gps-header">
+        <div class="gps-bus-icon">🚌</div>
+        <div class="gps-bus-info">
+            <h2>{{ bus.bus_number }}</h2>
+            <p>DRIVER: {{ bus.driver_name | upper }}</p>
+        </div>
+        {% if 'admin' in session %}
+        <a href="{{ url_for('admin_dashboard') }}" class="gps-back-btn">← Admin</a>
+        {% endif %}
+    </div>
+
+    <!-- Status Strip -->
+    <div class="gps-status-strip">
+        <div class="status-cell">
+            <span class="sc-val" id="gpsStatusText">
+                <span id="statusDot"></span>OFF
+            </span>
+            <span class="sc-key">GPS Status</span>
+        </div>
+        <div class="status-cell">
+            <span class="sc-val" id="updateCount">0</span>
+            <span class="sc-key">Updates Sent</span>
+        </div>
+        <div class="status-cell">
+            <span class="sc-val" id="lastSentTime">—</span>
+            <span class="sc-key">Last Sent</span>
+        </div>
+    </div>
+
+    <!-- Interval Selector -->
+    <div class="interval-row">
+        <span>Update every:</span>
+        <select id="intervalSelect">
+            <option value="5000">5 sec</option>
+            <option value="10000" selected>10 sec</option>
+            <option value="15000">15 sec</option>
+            <option value="30000">30 sec</option>
+        </select>
+    </div>
+
+    <!-- BIG TOGGLE -->
+    <div class="toggle-section">
+        <div class="toggle-label">Tap to toggle GPS sharing</div>
+        <button class="gps-toggle-btn" id="gpsToggleBtn" onclick="toggleGPS()">
+            <div class="toggle-power-icon">⏻</div>
+            <div class="toggle-btn-text" id="toggleBtnLabel">START</div>
+        </button>
+        <div class="toggle-hint" id="toggleHint">GPS sharing is OFF — students cannot see your location</div>
+    </div>
+
+    <!-- Coordinates -->
+    <div class="coords-grid">
+        <div class="coord-card">
+            <div class="cc-key">Latitude</div>
+            <div class="cc-val inactive" id="latVal">—</div>
+        </div>
+        <div class="coord-card">
+            <div class="cc-key">Longitude</div>
+            <div class="cc-val inactive" id="lngVal">—</div>
+        </div>
+        <div class="coord-card">
+            <div class="cc-key">Accuracy</div>
+            <div class="cc-val inactive" id="accVal">—</div>
+        </div>
+        <div class="coord-card">
+            <div class="cc-key">Speed</div>
+            <div class="cc-val inactive" id="speedVal">—</div>
+        </div>
+        <div class="coord-card full">
+            <div class="cc-key">Last Update</div>
+            <div class="cc-val inactive" id="timeVal">—</div>
+        </div>
+    </div>
+
+    <!-- Log Feed -->
+    <div class="log-section">
+        <h3>Activity Log</h3>
+        <div class="log-feed" id="logFeed">
+            <div class="log-line info"><span class="log-ts">--:--:--</span>System ready. Tap START to begin GPS sharing.</div>
+        </div>
+    </div>
+
+    <!-- Map -->
+    <div class="map-section">
+        <h3>Current Position</h3>
+        <div id="driverMap"></div>
+    </div>
+
+</div>
+
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+// ── CONFIG ───────────────────────────────────────────
+const BUS_ID  = {{ bus.id }};
+const BUS_NUM = "{{ bus.bus_number }}";
+const DRIVER  = "{{ bus.driver_name }}";
+
+// ── STATE ────────────────────────────────────────────
+let gpsActive    = false;
+let watchId      = null;
+let sendInterval = null;
+let updateCount  = 0;
+let lastCoords   = null;
+let map          = null;
+let marker       = null;
+let accuracy_circle = null;
+
+// ── MAP INIT (dark tiles) ─────────────────────────────
+function initMap(lat, lng) {
+    if (map) return;
+    map = L.map('driverMap', { zoomControl: true, attributionControl: false })
+            .setView([lat, lng], 15);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19
+    }).addTo(map);
+}
+
+function updateMapMarker(lat, lng, acc) {
+    if (!map) { initMap(lat, lng); }
+    const icon = L.divIcon({
+        html: '<div style="font-size:30px;line-height:1;filter:drop-shadow(0 0 6px #22c55e);">🚌</div>',
+        iconSize: [36, 36], iconAnchor: [18, 18], className: ''
+    });
+    if (marker) {
+        marker.setLatLng([lat, lng]);
+        accuracy_circle.setLatLng([lat, lng]).setRadius(acc);
+    } else {
+        marker = L.marker([lat, lng], { icon }).addTo(map)
+                  .bindPopup(`<b>🚌 ${BUS_NUM}</b><br>👤 ${DRIVER}`);
+        accuracy_circle = L.circle([lat, lng], {
+            radius: acc, color: '#22c55e', fillColor: '#22c55e',
+            fillOpacity: 0.06, weight: 1
+        }).addTo(map);
+    }
+    map.panTo([lat, lng]);
+}
+
+// ── LOG HELPER ────────────────────────────────────────
+function addLog(msg, type='info') {
+    const feed = document.getElementById('logFeed');
+    const ts   = new Date().toTimeString().slice(0,8);
+    const div  = document.createElement('div');
+    div.className = 'log-line ' + type;
+    div.innerHTML  = `<span class="log-ts">${ts}</span>${msg}`;
+    feed.prepend(div);
+    while (feed.children.length > 40) feed.removeChild(feed.lastChild);
+}
+
+// ── SEND LOCATION TO SERVER ───────────────────────────
+function sendLocation(lat, lng, accuracy, speed) {
+    const now = new Date();
+    fetch('/api/update_gps', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            bus_id:   BUS_ID,
+            lat:      lat,
+            lng:      lng,
+            accuracy: accuracy,
+            speed:    speed,
+            timestamp: now.toISOString()
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        updateCount++;
+        document.getElementById('updateCount').textContent = updateCount;
+        document.getElementById('lastSentTime').textContent = now.toTimeString().slice(0,8);
+        addLog(`📡 Sent → Lat: ${lat.toFixed(5)}, Lng: ${lng.toFixed(5)}`, 'ok');
+    })
+    .catch(err => {
+        addLog(`❌ Send failed: ${err.message}`, 'err');
+    });
+}
+
+// ── GPS POSITION HANDLER ──────────────────────────────
+function onPosition(pos) {
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
+    const acc = Math.round(pos.coords.accuracy);
+    const spd = pos.coords.speed ? (pos.coords.speed * 3.6).toFixed(1) + ' km/h' : '0 km/h';
+
+    lastCoords = { lat, lng, acc, spd };
+
+    // Update UI
+    document.getElementById('latVal').textContent   = lat.toFixed(6);
+    document.getElementById('lngVal').textContent   = lng.toFixed(6);
+    document.getElementById('accVal').textContent   = acc + ' m';
+    document.getElementById('speedVal').textContent = spd;
+    document.getElementById('timeVal').textContent  = new Date().toLocaleTimeString('en-IN');
+
+    // Update map
+    updateMapMarker(lat, lng, acc);
+
+    // Remove inactive class
+    ['latVal','lngVal','accVal','speedVal','timeVal'].forEach(id => {
+        document.getElementById(id).classList.remove('inactive', 'error');
+    });
+}
+
+function onGPSError(err) {
+    const msgs = {
+        1: 'Location permission denied. Allow location access in browser settings.',
+        2: 'Position unavailable. Check your GPS signal.',
+        3: 'Location request timed out. Retrying...'
+    };
+    const msg = msgs[err.code] || 'Unknown GPS error.';
+    addLog('⚠️ ' + msg, 'err');
+    setGPSError(msg);
+}
+
+// ── UI STATE SETTERS ──────────────────────────────────
+function setGPSOff() {
+    document.getElementById('gpsToggleBtn').className = 'gps-toggle-btn';
+    document.getElementById('toggleBtnLabel').textContent = 'START';
+    document.getElementById('gpsStatusText').innerHTML =
+        '<span id="statusDot"></span>OFF';
+    document.getElementById('toggleHint').textContent =
+        'GPS sharing is OFF — students cannot see your location';
+}
+
+function setGPSOn() {
+    document.getElementById('gpsToggleBtn').className = 'gps-toggle-btn gps-on';
+    document.getElementById('toggleBtnLabel').textContent = 'STOP';
+    document.getElementById('gpsStatusText').innerHTML =
+        '<span id="statusDot" class="active"></span>LIVE';
+    document.getElementById('toggleHint').textContent =
+        '✅ GPS sharing is ON — students can see your live location';
+}
+
+function setGPSError(msg) {
+    document.getElementById('gpsToggleBtn').className = 'gps-toggle-btn gps-error';
+    document.getElementById('toggleBtnLabel').textContent = 'ERROR';
+    document.getElementById('gpsStatusText').innerHTML =
+        '<span id="statusDot" class="error"></span>ERR';
+    ['latVal','lngVal','accVal','speedVal','timeVal'].forEach(id => {
+        document.getElementById(id).classList.add('error');
+        document.getElementById(id).classList.remove('inactive');
+    });
+}
+
+// ── MAIN TOGGLE ───────────────────────────────────────
+function toggleGPS() {
+    if (!gpsActive) {
+        startGPS();
+    } else {
+        stopGPS();
+    }
+}
+
+function startGPS() {
+    if (!navigator.geolocation) {
+        addLog('❌ Geolocation not supported on this device.', 'err');
+        return;
+    }
+
+    addLog('🔍 Requesting GPS permission...', 'info');
+
+    // Watch position continuously
+    watchId = navigator.geolocation.watchPosition(
+        onPosition,
+        onGPSError,
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+
+    // Send interval
+    const ms = parseInt(document.getElementById('intervalSelect').value);
+    sendInterval = setInterval(() => {
+        if (lastCoords) {
+            sendLocation(lastCoords.lat, lastCoords.lng, lastCoords.acc, lastCoords.spd);
+        }
+    }, ms);
+
+    gpsActive = true;
+    setGPSOn();
+    addLog(`✅ GPS started. Sending every ${ms/1000}s`, 'ok');
+
+    // Mark bus as active on server
+    fetch('/api/gps_toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bus_id: BUS_ID, active: true })
+    });
+}
+
+function stopGPS() {
+    if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+    }
+    if (sendInterval !== null) {
+        clearInterval(sendInterval);
+        sendInterval = null;
+    }
+    gpsActive = false;
+    lastCoords = null;
+    setGPSOff();
+    addLog('🔴 GPS sharing stopped.', 'err');
+
+    // Mark bus GPS off on server
+    fetch('/api/gps_toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bus_id: BUS_ID, active: false })
+    });
+
+    // Reset coord display
+    ['latVal','lngVal','accVal','speedVal','timeVal'].forEach(id => {
+        const el = document.getElementById(id);
+        el.textContent = '—';
+        el.className = 'cc-val inactive';
+    });
+}
+
+// Interval change restarts timer if active
+document.getElementById('intervalSelect').addEventListener('change', function() {
+    if (gpsActive) {
+        clearInterval(sendInterval);
+        const ms = parseInt(this.value);
+        sendInterval = setInterval(() => {
+            if (lastCoords) sendLocation(lastCoords.lat, lastCoords.lng, lastCoords.acc, lastCoords.spd);
+        }, ms);
+        addLog(`⚙️ Update interval changed to ${ms/1000}s`, 'info');
+    }
+});
+
+// Init map at Indore if no GPS yet
+window.addEventListener('DOMContentLoaded', () => {
+    initMap(22.7196, 75.8577);
+    addLog('🖥️ Driver GPS Panel ready for {{ bus.bus_number }}', 'info');
+});
+</script>
+
+{% endblock %}

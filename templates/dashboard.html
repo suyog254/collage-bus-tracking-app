@@ -60,11 +60,34 @@
     <!-- ══════════════ LEAFLET MAP ══════════════ -->
     <div class="panel">
         <h2>📍 Route Map — {{ my_route.route_name }}</h2>
-        <p style="font-size:13px;color:#64748b;margin-bottom:12px;">
+        <p style="font-size:13px;color:#64748b;margin-bottom:10px;">
             🚌 <b>{{ my_route.bus_number }}</b> &nbsp;|&nbsp;
             👤 Driver: <b>{{ my_route.driver_name }}</b> &nbsp;|&nbsp;
             🕐 Departs: <b>{{ my_route.departure_time }}</b>
         </p>
+
+        <!-- ── LIVE GPS STATUS BAR ── -->
+        <div id="gpsStatusBar" style="
+            display:flex; align-items:center; gap:10px;
+            background:#f1f5f9; border:1px solid #e2e8f0;
+            border-radius:10px; padding:10px 14px;
+            margin-bottom:12px; font-size:13px; flex-wrap:wrap;
+        ">
+            <span id="gpsStatusDot" style="
+                display:inline-block; width:10px; height:10px;
+                border-radius:50%; background:#94a3b8;
+                flex-shrink:0;
+            "></span>
+            <span id="gpsStatusText" style="color:#64748b; font-weight:600;">
+                GPS status check kar raha hai...
+            </span>
+            <span id="gpsSpeedBadge" style="display:none;
+                background:#dbeafe; color:#1d4ed8;
+                padding:2px 10px; border-radius:20px; font-size:12px; font-weight:600;">
+                🚀 <span id="gpsSpeedVal">—</span>
+            </span>
+            <span id="gpsUpdatedAt" style="margin-left:auto; color:#94a3b8; font-size:11px;"></span>
+        </div>
 
         <!-- Map Container -->
         <div id="busMap" style="height:380px;border-radius:12px;border:1px solid #e2e8f0;z-index:1;"></div>
@@ -89,132 +112,207 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-    <script>
-    // ── Stop coordinates for Indore routes ──────────────────────
-    // Known stop locations in Indore (lat, lng)
-    const stopCoords = {
-        "vijay nagar":    [22.7534, 75.8937],
-        "scheme 54":      [22.7400, 75.8800],
-        "palasia":        [22.7239, 75.8676],
-        "cdips":          [22.6900, 75.8300],
-        "cdips college":  [22.6900, 75.8300],
-        "rajwada":        [22.7196, 75.8577],
-        "sarwate":        [22.7150, 75.8490],
-        "geeta bhawan":   [22.7310, 75.8720],
-        "lig colony":     [22.7350, 75.8600],
-        "tilak nagar":    [22.7280, 75.8750],
-        "indore":         [22.7196, 75.8577],
-    };
+    <style>
+    /* GPS dot pulse animation */
+    @keyframes gpsPulse {
+        0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(34,197,94,0.5); }
+        50%       { opacity: 0.7; box-shadow: 0 0 0 6px rgba(34,197,94,0); }
+    }
+    .gps-dot-live {
+        background: #22c55e !important;
+        animation: gpsPulse 1.5s infinite;
+    }
+    .gps-dot-offline { background: #ef4444 !important; }
+    .gps-dot-checking { background: #f59e0b !important; }
+    </style>
 
-    // Default center: Indore
+    <script>
+    // ── CONFIG ───────────────────────────────────────────────────
+    var BUS_ID     = {{ my_route.bus_id }};
+    var BUS_NUMBER = "{{ my_route.bus_number }}";
+    var DRIVER     = "{{ my_route.driver_name }}";
+    var DRIVER_PH  = "{{ my_route.driver_phone or 'N/A' }}";
+
+    // ── STOP COORDS (Indore) ─────────────────────────────────────
+    const stopCoords = {
+        "vijay nagar":   [22.7534, 75.8937],
+        "scheme 54":     [22.7400, 75.8800],
+        "palasia":       [22.7239, 75.8676],
+        "cdips":         [22.6900, 75.8300],
+        "cdips college": [22.6900, 75.8300],
+        "rajwada":       [22.7196, 75.8577],
+        "sarwate":       [22.7150, 75.8490],
+        "geeta bhawan":  [22.7310, 75.8720],
+        "lig colony":    [22.7350, 75.8600],
+        "tilak nagar":   [22.7280, 75.8750],
+        "indore":        [22.7196, 75.8577],
+    };
     var defaultLat = 22.7196, defaultLng = 75.8577;
 
-    // Parse stops from Jinja
-    var stopsRaw = {{ my_route.stops | tojson }};
+    // ── PARSE STOPS ──────────────────────────────────────────────
+    var stopsRaw  = {{ my_route.stops | tojson }};
     var stopNames = stopsRaw.split('→').map(s => s.trim());
-
-    // Build coordinate array for each stop
-    var coords = [];
+    var coords    = [];
     stopNames.forEach(function(name) {
         var key = name.toLowerCase();
         if (stopCoords[key]) {
             coords.push({ name: name, lat: stopCoords[key][0], lng: stopCoords[key][1] });
         } else {
-            // If stop not in dict, use Indore center with small offset
-            coords.push({ name: name, lat: defaultLat + (coords.length * 0.005), lng: defaultLng + (coords.length * 0.005) });
+            coords.push({ name: name, lat: defaultLat + coords.length * 0.005, lng: defaultLng + coords.length * 0.005 });
         }
     });
 
-    // ── Initialize Map ──────────────────────────────────────────
+    // ── INIT MAP ─────────────────────────────────────────────────
     var centerLat = coords.length > 0 ? coords[0].lat : defaultLat;
     var centerLng = coords.length > 0 ? coords[0].lng : defaultLng;
-
     var map = L.map('busMap').setView([centerLat, centerLng], 13);
 
-    // OpenStreetMap tiles (free, no API key)
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         maxZoom: 19
     }).addTo(map);
 
-    // ── Custom Bus Icon ─────────────────────────────────────────
-    var busIcon = L.divIcon({
-        html: '<div style="font-size:28px;line-height:1;">🚌</div>',
-        iconSize: [36, 36],
-        iconAnchor: [18, 18],
-        className: ''
+    // ── ICONS ────────────────────────────────────────────────────
+    var busIconLive = L.divIcon({
+        html: '<div style="font-size:30px;line-height:1;filter:drop-shadow(0 0 6px #22c55e);">🚌</div>',
+        iconSize: [36,36], iconAnchor: [18,18], className: ''
     });
-
-    var startIcon = L.divIcon({
-        html: '<div style="font-size:22px;line-height:1;">🟢</div>',
-        iconSize: [28, 28],
-        iconAnchor: [14, 14],
-        className: ''
+    var busIconOffline = L.divIcon({
+        html: '<div style="font-size:28px;line-height:1;opacity:0.5;">🚌</div>',
+        iconSize: [36,36], iconAnchor: [18,18], className: ''
     });
+    
 
-    var endIcon = L.divIcon({
-        html: '<div style="font-size:22px;line-height:1;">🏁</div>',
-        iconSize: [28, 28],
-        iconAnchor: [14, 14],
-        className: ''
-    });
+    // ── LIVE BUS MARKER (GPS se aata hai) ───────────────────────
+    var busMarker     = null;
+    var accuracyCircle = null;
 
-    var stopIcon = L.divIcon({
-        html: '<div style="font-size:18px;line-height:1;">📍</div>',
-        iconSize: [24, 24],
-        iconAnchor: [12, 12],
-        className: ''
-    });
-
-    // ── Add markers for each stop ───────────────────────────────
-    var latLngs = [];
-    coords.forEach(function(stop, i) {
-        var icon = (i === 0) ? startIcon : (i === coords.length - 1) ? endIcon : stopIcon;
-        var label = (i === 0) ? '🟢 START' : (i === coords.length - 1) ? '🏁 END' : '📍 Stop ' + (i);
-
-        L.marker([stop.lat, stop.lng], { icon: icon })
-         .addTo(map)
-         .bindPopup(
-            '<b>' + label + '</b><br>' + stop.name,
-            { maxWidth: 200 }
-         );
-
-        latLngs.push([stop.lat, stop.lng]);
-    });
-
-    // ── Draw route polyline ─────────────────────────────────────
-    if (latLngs.length > 1) {
-        L.polyline(latLngs, {
-            color: '#3498db',
-            weight: 4,
-            opacity: 0.8,
-            dashArray: '8, 6'
-        }).addTo(map);
-
-        // Fit map to show all stops
-        map.fitBounds(latLngs, { padding: [40, 40] });
-    }
-
-    // ── Animated bus marker on route ───────────────────────────
-    {% if my_route.status == 'active' %}
-    // Show bus icon at midpoint of route (simulate position)
+    // Placeholder marker (midpoint pe — GPS milne tak)
     if (coords.length >= 2) {
-        var midIndex = Math.floor(coords.length / 2);
-        var busLat = coords[midIndex].lat + 0.002;
-        var busLng = coords[midIndex].lng + 0.002;
-
-        L.marker([busLat, busLng], { icon: busIcon })
-         .addTo(map)
-         .bindPopup(
-            '<b>🚌 {{ my_route.bus_number }}</b><br>' +
-            '👤 {{ my_route.driver_name }}<br>' +
-            '📞 {{ my_route.driver_phone or "N/A" }}<br>' +
-            '<span style="color:#27ae60;font-weight:bold;">● ACTIVE</span>',
-            { maxWidth: 220 }
-         )
-         .openPopup();
+        var mid = Math.floor(coords.length / 2);
+        busMarker = L.marker([coords[mid].lat + 0.002, coords[mid].lng + 0.002], { icon: busIconOffline })
+            .addTo(map)
+            .bindPopup(
+                '<b>🚌 ' + BUS_NUMBER + '</b><br>' +
+                '👤 ' + DRIVER + '<br>' +
+                '📞 ' + DRIVER_PH + '<br>' +
+                '<span style="color:#94a3b8;">⌛ GPS data abhi nahi mila</span>',
+                { maxWidth: 240 }
+            );
     }
-    {% endif %}
+
+    // ── STATUS BAR UPDATE ────────────────────────────────────────
+    function setStatusLive(speed, updatedAt) {
+        var dot  = document.getElementById('gpsStatusDot');
+        var txt  = document.getElementById('gpsStatusText');
+        var spd  = document.getElementById('gpsSpeedBadge');
+        var sval = document.getElementById('gpsSpeedVal');
+        var upd  = document.getElementById('gpsUpdatedAt');
+        var bar  = document.getElementById('gpsStatusBar');
+
+        dot.className = 'gps-dot-live';
+        txt.textContent = '🟢 Bus GPS Live — Real-time location';
+        txt.style.color = '#15803d';
+        bar.style.background = '#f0fdf4';
+        bar.style.borderColor = '#86efac';
+
+        if (speed && speed !== '—' && speed !== '0 km/h') {
+            spd.style.display = 'inline-block';
+            sval.textContent  = speed;
+        }
+        if (updatedAt) {
+            upd.textContent = 'Updated: ' + updatedAt.slice(11,19);
+        }
+    }
+
+    function setStatusOffline() {
+        var dot = document.getElementById('gpsStatusDot');
+        var txt = document.getElementById('gpsStatusText');
+        var spd = document.getElementById('gpsSpeedBadge');
+        var bar = document.getElementById('gpsStatusBar');
+
+        dot.className = 'gps-dot-offline';
+        txt.textContent = '🔴 GPS Offline – Driver did not share GPS location.';
+        txt.style.color = '#dc2626';
+        bar.style.background = '#fff5f5';
+        bar.style.borderColor = '#fecaca';
+        spd.style.display = 'none';
+    }
+
+    function setStatusChecking() {
+        var dot = document.getElementById('gpsStatusDot');
+        var txt = document.getElementById('gpsStatusText');
+        dot.className = 'gps-dot-checking';
+        txt.textContent = '⏳ GPS status check kar raha hai...';
+        txt.style.color = '#92400e';
+    }
+
+    // ── FETCH LIVE LOCATION ──────────────────────────────────────
+    function fetchLiveGPS() {
+        fetch('/api/live_location/' + BUS_ID)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.active && data.lat && data.lng) {
+                // ✅ GPS ON — marker move karo
+                var newPos = [data.lat, data.lng];
+
+                if (busMarker) {
+                    busMarker.setLatLng(newPos);
+                    busMarker.setIcon(busIconLive);
+                    busMarker.setPopupContent(
+                        '<b>🚌 ' + BUS_NUMBER + '</b><br>' +
+                        '👤 ' + DRIVER + '<br>' +
+                        '📞 ' + DRIVER_PH + '<br>' +
+                        '🚀 Speed: <b>' + (data.speed || '—') + '</b><br>' +
+                        '🎯 Accuracy: ' + (data.accuracy ? Math.round(data.accuracy) + ' m' : '—') + '<br>' +
+                        '<span style="color:#22c55e;font-weight:bold;">● LIVE GPS</span><br>' +
+                        '<span style="font-size:11px;color:#64748b;">Updated: ' + (data.updated_at || '') + '</span>'
+                    );
+                } else {
+                    busMarker = L.marker(newPos, { icon: busIconLive })
+                        .addTo(map)
+                        .bindPopup(
+                            '<b>🚌 ' + BUS_NUMBER + '</b><br>' +
+                            '<span style="color:#22c55e;font-weight:bold;">● LIVE GPS</span>'
+                        );
+                }
+
+                // Accuracy circle
+                if (data.accuracy) {
+                    if (accuracyCircle) {
+                        accuracyCircle.setLatLng(newPos).setRadius(data.accuracy);
+                    } else {
+                        accuracyCircle = L.circle(newPos, {
+                            radius: data.accuracy,
+                            color: '#22c55e', fillColor: '#22c55e',
+                            fillOpacity: 0.08, weight: 1
+                        }).addTo(map);
+                    }
+                }
+
+                // Map ko bus ke paas zoom karo
+                map.panTo(newPos, { animate: true, duration: 1 });
+
+                // Status bar update
+                setStatusLive(data.speed, data.updated_at);
+
+            } else {
+                // ❌ GPS OFF
+                if (busMarker) busMarker.setIcon(busIconOffline);
+                if (accuracyCircle) { map.removeLayer(accuracyCircle); accuracyCircle = null; }
+                setStatusOffline();
+            }
+        })
+        .catch(function() {
+            setStatusOffline();
+        });
+    }
+
+    // ── START POLLING ────────────────────────────────────────────
+    // Turant ek baar check karo, phir har 10 sec mein
+    fetchLiveGPS();
+    setInterval(fetchLiveGPS, 10000);
+
     </script>
 
     {% else %}

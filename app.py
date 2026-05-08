@@ -3,7 +3,7 @@ import io
 from datetime import datetime
 import pytz
 
-from flask import Flask, render_template, request, redirect, url_for, session, flash, make_response
+from flask import Flask, render_template, request, redirect, url_for, session, flash, make_response, jsonify
 import sqlite3, re
 from functools import wraps
 
@@ -61,6 +61,16 @@ def init_db():
         is_read INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(user_id) REFERENCES users(id))''')
+    c.execute('''CREATE TABLE IF NOT EXISTS bus_live_location (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        bus_id     INTEGER NOT NULL UNIQUE,
+        lat        REAL,
+        lng        REAL,
+        accuracy   REAL,
+        speed      TEXT,
+        gps_active INTEGER DEFAULT 0,
+        updated_at TEXT,
+        FOREIGN KEY(bus_id) REFERENCES buses(id))''')
     # Seed data
     if not c.execute("SELECT 1 FROM users WHERE email='admin@cdips.edu'").fetchone():
         c.execute("INSERT INTO users(name,email,password,role) VALUES(?,?,?,?)",
@@ -800,6 +810,107 @@ def export_drivers():
     return response
 
 
+
+
+# ─── GPS: DRIVER PAGE ──────────────────────────────────────────────────
+@app.route('/driver/gps/<int:bus_id>')
+@admin_required
+def driver_gps_page(bus_id):
+    db = get_db()
+    bus = db.execute("SELECT * FROM buses WHERE id=?", (bus_id,)).fetchone()
+    db.close()
+    if not bus:
+        flash('Bus not found.', 'error')
+        return redirect(url_for('admin_dashboard'))
+    return render_template('driver_gps.html', bus=bus)
+
+# ─── GPS: ON / OFF TOGGLE ──────────────────────────────────────────────
+@app.route('/api/gps_toggle', methods=['POST'])
+@admin_required
+def gps_toggle():
+    data   = request.get_json(force=True)
+    bus_id = data.get('bus_id')
+    active = 1 if data.get('active') else 0
+    now    = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    db     = get_db()
+    exists = db.execute("SELECT id FROM bus_live_location WHERE bus_id=?", (bus_id,)).fetchone()
+    if exists:
+        db.execute("UPDATE bus_live_location SET gps_active=?, updated_at=? WHERE bus_id=?",
+                   (active, now, bus_id))
+    else:
+        db.execute("INSERT INTO bus_live_location(bus_id, gps_active, updated_at) VALUES(?,?,?)",
+                   (bus_id, active, now))
+    db.commit(); db.close()
+    return jsonify({'success': True, 'gps_active': active})
+
+# ─── GPS: RECEIVE LOCATION FROM DRIVER PHONE ──────────────────────────
+@app.route('/api/update_gps', methods=['POST'])
+@admin_required
+def update_gps():
+    data     = request.get_json(force=True)
+    bus_id   = data.get('bus_id')
+    lat      = data.get('lat')
+    lng      = data.get('lng')
+    accuracy = data.get('accuracy')
+    speed    = data.get('speed', '—')
+    if not all([bus_id, lat, lng]):
+        return jsonify({'error': 'Missing fields'}), 400
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    db  = get_db()
+    exists = db.execute("SELECT id FROM bus_live_location WHERE bus_id=?", (bus_id,)).fetchone()
+    if exists:
+        db.execute('''UPDATE bus_live_location
+                      SET lat=?, lng=?, accuracy=?, speed=?, gps_active=1, updated_at=?
+                      WHERE bus_id=?''', (lat, lng, accuracy, speed, now, bus_id))
+    else:
+        db.execute('''INSERT INTO bus_live_location(bus_id,lat,lng,accuracy,speed,gps_active,updated_at)
+                      VALUES(?,?,?,?,?,1,?)''', (bus_id, lat, lng, accuracy, speed, now))
+    db.commit(); db.close()
+    return jsonify({'success': True, 'received_at': now})
+
+# ─── GPS: STUDENT MAP PE LIVE LOCATION ────────────────────────────────
+@app.route('/api/live_location/<int:bus_id>')
+def get_live_location(bus_id):
+    db  = get_db()
+    row = db.execute(
+        "SELECT lat,lng,accuracy,speed,gps_active,updated_at FROM bus_live_location WHERE bus_id=?",
+        (bus_id,)
+    ).fetchone()
+    db.close()
+    if not row or not row['gps_active']:
+        return jsonify({'active': False, 'message': 'GPS offline'})
+    return jsonify({
+        'active':     True,
+        'lat':        row['lat'],
+        'lng':        row['lng'],
+        'accuracy':   row['accuracy'],
+        'speed':      row['speed'],
+        'updated_at': row['updated_at']
+    })
+
+# ─── GPS: ADMIN — SAARI BUSES KA GPS STATUS ───────────────────────────
+@app.route('/api/all_gps_status')
+@admin_required
+def all_gps_status():
+    db   = get_db()
+    rows = db.execute('''
+        SELECT b.id, b.bus_number, b.driver_name,
+               l.lat, l.lng, l.gps_active, l.updated_at, l.speed
+        FROM buses b
+        LEFT JOIN bus_live_location l ON b.id = l.bus_id
+        WHERE b.status = "active"
+    ''').fetchall()
+    db.close()
+    return jsonify([{
+        'bus_id':      r['id'],
+        'bus_number':  r['bus_number'],
+        'driver_name': r['driver_name'],
+        'lat':         r['lat'],
+        'lng':         r['lng'],
+        'gps_active':  bool(r['gps_active']),
+        'updated_at':  r['updated_at'],
+        'speed':       r['speed']
+    } for r in rows])
 
 
 if __name__ == '__main__':
