@@ -94,9 +94,9 @@ def export_to_csv():
     routes = conn.execute("SELECT * FROM routes").fetchall()
     with open('backup_routes.csv', 'w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
-        writer.writerow(['route_name', 'bus_number','departure_time', 'arrival_time', 'stops'])
+        writer.writerow(['route_name', 'bus_id','departure_time', 'arrival_time', 'stops'])
         for route in routes:
-            writer.writerow([route['route_name'], route['bus_number'], route['departure_time'], route['arrival_time'], route['stops']])
+            writer.writerow([route['route_name'], route['bus_id'], route['departure_time'], route['arrival_time'], route['stops']])
     
     # Export users (only students, exclude password and admin data)
     users = conn.execute("SELECT * FROM users WHERE role='student'").fetchall()
