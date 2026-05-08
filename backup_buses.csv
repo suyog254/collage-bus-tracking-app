@@ -6,3 +6,5 @@ id,bus_number,driver_name,driver_phone,driver_address,capacity,status
 24,BUS-05,Ajju Singh,7643321989,"17,Tejaji Nagar",40,active
 25,BUS-06,Rashid Khan,8976543216,"14,sanawad,sanawad",40,active
 26,BUS-07,Rahul Kumar,6521213456,"64,Palda,indore",40,active
+27,BUS-08,Mahesh Singh,9876543216,Ujjain,40,active
+28,BUS-09,Deepak Chauhan,9876543217,"104,banganga main road",40,active

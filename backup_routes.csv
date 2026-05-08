@@ -1,1 +1,9 @@
-id,route_name,bus_id,bus_number,departure_time,arrival_time,stops
+id,route_name,bus_id,departure_time,arrival_time,stops
+28,Route A - Sanawat,20,07:45,08:10,Sanawat → Balwada → Gwalu Faata → Choral → Talai Naka → Simrol Bus Stand → CDIPS
+29,Route B - Mari Mata,21,07:05,08:10,Mari Mata → Regal Square → Geeta Bhawan → Navlakha → Khandwa Naka → Teja Ji Nagar → CDIPS
+30,Route C - Dhar,22,07:05,08:10,Dhar → Indore Naka → Betma → Rangwasa → Kanha Park → Railway Bridge → Rau Circle → CDIPS
+31,Route D - Bombay Hospital,23,07:05,08:10,Bombay Hospital → City Bus Stop → Musakhedi → Pink City → Pipalyahana → CDIPS
+32,Route E - Paliya,24,07:05,08:10,Paliya → Rajwada → Collector Office → Tower Square → Apple Hospital → Bhawar Kua → CDIPS
+33,Route F - Banganga,25,07:05,08:10,Banganga → Mhow Naka → Apple Hospital → Bhawar Kua → Khandwa Naka → Limbodi → Teja Ji Nagar → CDIPS
+34,Route G - Pardeshi Pura,26,07:05,08:10,Pardeshi Pura → Palasia → Bengali Square → Police Line → Blue Water Park → Bicholi Bridge → CDGI
+35,Route H - MR10,27,07:05,08:10,MR10 → IT Ground → Bapat Square → Vijay nagar square → Radisson Square → Teja Ji Nagar → CDGI
