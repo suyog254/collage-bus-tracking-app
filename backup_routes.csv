@@ -1,1 +1,4 @@
 id,route_name,bus_id,original_bus_id,departure_time,arrival_time,stops
+17,Route A - Vijay Nagar,1,,07:30,08:15,Vijay Nagar → Scheme 54 → Palasia → CDIPS
+18,Route B - Palasia,2,,07:45,08:20,Palasia → LIG Colony → Tilak Nagar → CDIPS
+19,Route C - Rajwada,3,,07:15,08:10,Rajwada → Sarwate → Geeta Bhawan → CDIPS
