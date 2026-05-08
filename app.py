@@ -94,17 +94,17 @@ def export_to_csv():
     routes = conn.execute("SELECT * FROM routes").fetchall()
     with open('backup_routes.csv', 'w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
-        writer.writerow(['route_name', 'bus_id', 'original_bus_id','departure_time', 'arrival_time', 'stops'])
+        writer.writerow(['route_name', 'bus_number','departure_time', 'arrival_time', 'stops'])
         for route in routes:
-            writer.writerow([route['route_name'], route['bus_id'], route['original_bus_id'], route['departure_time'], route['arrival_time'], route['stops']])
+            writer.writerow([route['route_name'], route['bus_number'], route['departure_time'], route['arrival_time'], route['stops']])
     
     # Export users (only students, exclude password and admin data)
     users = conn.execute("SELECT * FROM users WHERE role='student'").fetchall()
     with open('backup_users.csv', 'w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
-        writer.writerow(['name', 'email', 'phone', 'route_id'])
+        writer.writerow(['name', 'email', 'phone', 'route_name'])
         for user in users:
-            writer.writerow([user['name'], user['email'], user['phone'], user['route_id']])
+            writer.writerow([user['name'], user['email'], user['phone'], user['route_name']])
 
     # Export gate_logs with bus details
     gate_logs = conn.execute("""
