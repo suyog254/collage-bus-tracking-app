@@ -59,29 +59,53 @@
 
     <!-- ══════════════ LEAFLET MAP ══════════════ -->
     <div class="panel">
-        <h2>📍 Route Map — {{ my_route.route_name }}</h2>
-        <p style="font-size:13px;color:#64748b;margin-bottom:12px;">
+        <h2>📍 Live Route Map — {{ my_route.route_name }}</h2>
+        <p style="font-size:13px;color:#64748b;margin-bottom:10px;">
             🚌 <b>{{ my_route.bus_number }}</b> &nbsp;|&nbsp;
             👤 Driver: <b>{{ my_route.driver_name }}</b> &nbsp;|&nbsp;
-            🕐 Departs: <b>{{ my_route.departure_time }}</b>
+            🕐 Departs: <b>{{ my_route.departure_time }}</b> &nbsp;|&nbsp;
+            🏁 Destination: <b>CDIPS College</b>
         </p>
 
-        <!-- Map Container -->
-        <div id="busMap" style="height:380px;border-radius:12px;border:1px solid #e2e8f0;z-index:1;"></div>
-
-        <!-- Stop list below map -->
-        <div style="margin-top:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-            <span style="font-size:12px;color:#64748b;font-weight:600;">ROUTE STOPS:</span>
-            {% set stop_list = my_route.stops.split('→') %}
-            {% for stop in stop_list %}
-            <span style="display:inline-flex;align-items:center;gap:4px;background:#eff6ff;color:#1d4ed8;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:500;">
-                {% if loop.first %}🟢{% elif loop.last %}🏁{% else %}📍{% endif %}
-                {{ stop.strip() }}
+        <!-- ── LIVE GPS STATUS BAR ── -->
+        <div id="gpsStatusBar" style="
+            display:flex; align-items:center; gap:10px;
+            background:#f1f5f9; border:1px solid #e2e8f0;
+            border-radius:10px; padding:10px 14px;
+            margin-bottom:12px; font-size:13px; flex-wrap:wrap;
+            transition: all 0.4s ease;
+        ">
+            <span id="gpsStatusDot" style="
+                display:inline-block; width:10px; height:10px;
+                border-radius:50%; background:#94a3b8; flex-shrink:0;
+            "></span>
+            <span id="gpsStatusText" style="color:#64748b; font-weight:600;">
+                ⏳ GPS status check ho raha hai...
             </span>
-            {% if not loop.last %}
-            <span style="color:#94a3b8;font-size:12px;">→</span>
-            {% endif %}
-            {% endfor %}
+            <span id="gpsSpeedBadge" style="display:none;
+                background:#dbeafe; color:#1d4ed8;
+                padding:2px 10px; border-radius:20px; font-size:12px; font-weight:600;">
+                🚀 <span id="gpsSpeedVal">—</span>
+            </span>
+            <span id="gpsAccBadge" style="display:none;
+                background:#f0fdf4; color:#166534;
+                padding:2px 10px; border-radius:20px; font-size:12px;">
+                🎯 <span id="gpsAccVal">—</span>
+            </span>
+            <span id="gpsUpdatedAt" style="margin-left:auto; color:#94a3b8; font-size:11px;"></span>
+        </div>
+
+        <!-- Map Container -->
+        <div id="busMap" style="height:420px;border-radius:12px;border:1px solid #e2e8f0;z-index:1;"></div>
+
+        <!-- Map Legend — sirf 3 cheezein -->
+        <div style="margin-top:12px; display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:#64748b;">
+            <span>📍 user (student Location)</span>
+            <span>🚌 Bus (Live GPS)</span>
+            <span>🏫 CDIPS College</span>
+            <span style="display:inline-flex;align-items:center;gap:4px;">
+                <span style="display:inline-block;width:24px;height:3px;background:#22c55e;border-radius:2px;"></span> Bus → College
+            </span>
         </div>
     </div>
 
@@ -89,132 +113,240 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
+    <style>
+    @keyframes gpsPulse {
+        0%, 100% { opacity:1; box-shadow:0 0 0 0 rgba(34,197,94,0.5); }
+        50%       { opacity:0.7; box-shadow:0 0 0 8px rgba(34,197,94,0); }
+    }
+    .gps-dot-live    { background:#22c55e !important; animation:gpsPulse 1.5s infinite; }
+    .gps-dot-offline { background:#ef4444 !important; }
+    .gps-dot-wait    { background:#f59e0b !important; }
+    </style>
+
     <script>
-    // ── Stop coordinates for Indore routes ──────────────────────
-    // Known stop locations in Indore (lat, lng)
-    const stopCoords = {
-        "vijay nagar":    [22.7534, 75.8937],
-        "scheme 54":      [22.7400, 75.8800],
-        "palasia":        [22.7239, 75.8676],
-        "cdips":          [22.6900, 75.8300],
-        "cdips college":  [22.6900, 75.8300],
-        "rajwada":        [22.7196, 75.8577],
-        "sarwate":        [22.7150, 75.8490],
-        "geeta bhawan":   [22.7310, 75.8720],
-        "lig colony":     [22.7350, 75.8600],
-        "tilak nagar":    [22.7280, 75.8750],
-        "indore":         [22.7196, 75.8577],
+    // ════════════════════════════════════════════════════════
+    // CONFIG
+    // ════════════════════════════════════════════════════════
+    var BUS_ID     = {{ my_route.bus_id }};
+    var BUS_NUMBER = "{{ my_route.bus_number }}";
+    var DRIVER     = "{{ my_route.driver_name }}";
+    var DRIVER_PH  = "{{ my_route.driver_phone or 'N/A' }}";
+
+    // ── CDIPS COLLEGE — FIXED FINAL DESTINATION ──────────────
+    // Exact location: Village Umrikheda, Near Toll Naka, Khandwa Road, Indore
+    // Source: Google Places API
+    var COLLEGE = {
+        name: "CDIPS College",
+        lat:  22.6146409,
+        lng:  75.8888748
     };
 
-    // Default center: Indore
-    var defaultLat = 22.7196, defaultLng = 75.8577;
+    // ── STOP COORDINATES no longer needed — removed ──────────
+    var defaultLat = 22.6900, defaultLng = 75.8700;  // midpoint between city & college
 
-    // Parse stops from Jinja
-    var stopsRaw = {{ my_route.stops | tojson }};
-    var stopNames = stopsRaw.split('→').map(s => s.trim());
+    // ════════════════════════════════════════════════════════
+    // MAP INIT — centered between user area & college
+    // ════════════════════════════════════════════════════════
+    var map = L.map('busMap').setView([22.6600, 75.8800], 12);
 
-    // Build coordinate array for each stop
-    var coords = [];
-    stopNames.forEach(function(name) {
-        var key = name.toLowerCase();
-        if (stopCoords[key]) {
-            coords.push({ name: name, lat: stopCoords[key][0], lng: stopCoords[key][1] });
-        } else {
-            // If stop not in dict, use Indore center with small offset
-            coords.push({ name: name, lat: defaultLat + (coords.length * 0.005), lng: defaultLng + (coords.length * 0.005) });
-        }
-    });
-
-    // ── Initialize Map ──────────────────────────────────────────
-    var centerLat = coords.length > 0 ? coords[0].lat : defaultLat;
-    var centerLng = coords.length > 0 ? coords[0].lng : defaultLng;
-
-    var map = L.map('busMap').setView([centerLat, centerLng], 13);
-
-    // OpenStreetMap tiles (free, no API key)
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         maxZoom: 19
     }).addTo(map);
 
-    // ── Custom Bus Icon ─────────────────────────────────────────
-    var busIcon = L.divIcon({
-        html: '<div style="font-size:28px;line-height:1;">🚌</div>',
-        iconSize: [36, 36],
-        iconAnchor: [18, 18],
-        className: ''
+    // ── ICONS ─────────────────────────────────────────────────
+    var busIconLive = L.divIcon({
+        html: '<div style="font-size:32px;line-height:1;filter:drop-shadow(0 0 8px #22c55e);transform:scale(1.1);">🚌</div>',
+        iconSize:[38,38], iconAnchor:[19,19], className:''
+    });
+    var busIconOffline = L.divIcon({
+        html: '<div style="font-size:28px;line-height:1;opacity:0.45;filter:grayscale(1);">🚌</div>',
+        iconSize:[36,36], iconAnchor:[18,18], className:''
+    });
+    var userIcon = L.divIcon({
+        html: '<div style="font-size:24px;line-height:1;filter:drop-shadow(0 0 6px #3b82f6);">📍</div>',
+        iconSize:[28,28], iconAnchor:[14,24], className:''
+    });
+    var collegeIcon = L.divIcon({
+        html: '<div style="font-size:28px;line-height:1;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.35));">🏫</div>',
+        iconSize:[32,32], iconAnchor:[16,28], className:''
     });
 
-    var startIcon = L.divIcon({
-        html: '<div style="font-size:22px;line-height:1;">🟢</div>',
-        iconSize: [28, 28],
-        iconAnchor: [14, 14],
-        className: ''
-    });
+    // ── COLLEGE MARKER — always fixed ─────────────────────────
+    L.marker([COLLEGE.lat, COLLEGE.lng], { icon: collegeIcon })
+     .addTo(map)
+     .bindPopup(
+        '<div style="min-width:160px;">' +
+        '<b style="font-size:14px;">🏫 CDIPS College</b><br>' +
+        '<span style="font-size:12px;color:#64748b;">Village Umrikheda,<br>Near Toll Naka, Khandwa Road<br>Indore — 452020</span><br>' +
+        '<span style="color:#f59e0b;font-size:11px;font-weight:600;">📌 Final Destination</span>' +
+        '</div>',
+        { maxWidth: 220 }
+     );
 
-    var endIcon = L.divIcon({
-        html: '<div style="font-size:22px;line-height:1;">🏁</div>',
-        iconSize: [28, 28],
-        iconAnchor: [14, 14],
-        className: ''
-    });
+    // ── USER LOCATION ──────────────────────────────────────────
+    var userMarker       = null;
+    var userCircle       = null;
 
-    var stopIcon = L.divIcon({
-        html: '<div style="font-size:18px;line-height:1;">📍</div>',
-        iconSize: [24, 24],
-        iconAnchor: [12, 12],
-        className: ''
-    });
-
-    // ── Add markers for each stop ───────────────────────────────
-    var latLngs = [];
-    coords.forEach(function(stop, i) {
-        var icon = (i === 0) ? startIcon : (i === coords.length - 1) ? endIcon : stopIcon;
-        var label = (i === 0) ? '🟢 START' : (i === coords.length - 1) ? '🏁 END' : '📍 Stop ' + (i);
-
-        L.marker([stop.lat, stop.lng], { icon: icon })
-         .addTo(map)
-         .bindPopup(
-            '<b>' + label + '</b><br>' + stop.name,
-            { maxWidth: 200 }
-         );
-
-        latLngs.push([stop.lat, stop.lng]);
-    });
-
-    // ── Draw route polyline ─────────────────────────────────────
-    if (latLngs.length > 1) {
-        L.polyline(latLngs, {
-            color: '#3498db',
-            weight: 4,
-            opacity: 0.8,
-            dashArray: '8, 6'
-        }).addTo(map);
-
-        // Fit map to show all stops
-        map.fitBounds(latLngs, { padding: [40, 40] });
+    function showUserLocation(lat, lng, acc) {
+        var pos = [lat, lng];
+        if (userMarker) {
+            userMarker.setLatLng(pos);
+            userCircle.setLatLng(pos).setRadius(acc);
+        } else {
+            userMarker = L.marker(pos, { icon: userIcon, zIndexOffset: 500 })
+                .addTo(map)
+                .bindPopup('<b>📍 Aapki Location</b><br><span style="font-size:11px;color:#64748b;">Accuracy: ' + Math.round(acc) + ' m</span>', { maxWidth: 180 });
+            userCircle = L.circle(pos, {
+                radius: acc,
+                color: '#3b82f6', fillColor: '#3b82f6',
+                fillOpacity: 0.07, weight: 1
+            }).addTo(map);
+        }
     }
 
-    // ── Animated bus marker on route ───────────────────────────
-    {% if my_route.status == 'active' %}
-    // Show bus icon at midpoint of route (simulate position)
-    if (coords.length >= 2) {
-        var midIndex = Math.floor(coords.length / 2);
-        var busLat = coords[midIndex].lat + 0.002;
-        var busLng = coords[midIndex].lng + 0.002;
-
-        L.marker([busLat, busLng], { icon: busIcon })
-         .addTo(map)
-         .bindPopup(
-            '<b>🚌 {{ my_route.bus_number }}</b><br>' +
-            '👤 {{ my_route.driver_name }}<br>' +
-            '📞 {{ my_route.driver_phone or "N/A" }}<br>' +
-            '<span style="color:#27ae60;font-weight:bold;">● ACTIVE</span>',
-            { maxWidth: 220 }
-         )
-         .openPopup();
+    // Get user's location once on load
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            function(pos) {
+                showUserLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
+                // Fit map to show user + college
+                map.fitBounds([
+                    [pos.coords.latitude, pos.coords.longitude],
+                    [COLLEGE.lat, COLLEGE.lng]
+                ], { padding: [50, 50] });
+            },
+            function() {
+                // Permission denied — just show college area
+                map.fitBounds([
+                    [22.7196, 75.8577],
+                    [COLLEGE.lat, COLLEGE.lng]
+                ], { padding: [50, 50] });
+            },
+            { enableHighAccuracy: true, timeout: 8000 }
+        );
+    } else {
+        map.fitBounds([[22.7196, 75.8577], [COLLEGE.lat, COLLEGE.lng]], { padding:[50,50] });
     }
-    {% endif %}
+
+    // ════════════════════════════════════════════════════════
+    // LIVE GPS STATE
+    // ════════════════════════════════════════════════════════
+    var busMarker      = null;
+    var accuracyCircle = null;
+    var liveRouteLine  = null;
+
+    // ── STATUS BAR HELPERS ────────────────────────────────────
+    function setStatusLive(speed, acc, updatedAt) {
+        var bar  = document.getElementById('gpsStatusBar');
+        var dot  = document.getElementById('gpsStatusDot');
+        var txt  = document.getElementById('gpsStatusText');
+        var spd  = document.getElementById('gpsSpeedBadge');
+        var sval = document.getElementById('gpsSpeedVal');
+        var ab   = document.getElementById('gpsAccBadge');
+        var aval = document.getElementById('gpsAccVal');
+        var upd  = document.getElementById('gpsUpdatedAt');
+
+        dot.className    = 'gps-dot-live';
+        txt.textContent  = '🟢 Bus GPS LIVE — Real-time location';
+        txt.style.color  = '#15803d';
+        bar.style.background   = '#f0fdf4';
+        bar.style.borderColor  = '#86efac';
+
+        if (speed && speed !== '—' && speed !== '0.0 km/h' && speed !== '0 km/h') {
+            spd.style.display = 'inline-block';
+            sval.textContent  = speed;
+        } else {
+            spd.style.display = 'none';
+        }
+        if (acc) {
+            ab.style.display = 'inline-block';
+            aval.textContent = Math.round(acc) + ' m accuracy';
+        }
+        if (updatedAt) upd.textContent = 'Updated: ' + updatedAt.slice(11,19);
+    }
+
+    function setStatusOffline() {
+        var bar = document.getElementById('gpsStatusBar');
+        var dot = document.getElementById('gpsStatusDot');
+        var txt = document.getElementById('gpsStatusText');
+        dot.className   = 'gps-dot-offline';
+        txt.textContent = '🔴 GPS Offline – Driver did not share GPS location.';
+        txt.style.color = '#dc2626';
+        bar.style.background  = '#fff5f5';
+        bar.style.borderColor = '#fecaca';
+        document.getElementById('gpsSpeedBadge').style.display = 'none';
+        document.getElementById('gpsAccBadge').style.display   = 'none';
+    }
+
+    // ════════════════════════════════════════════════════════
+    // FETCH LIVE GPS (har 10 sec mein)
+    // ════════════════════════════════════════════════════════
+    function fetchLiveGPS() {
+        fetch('/api/live_location/' + BUS_ID)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+
+            if (data.active && data.lat && data.lng) {
+                var newPos = [data.lat, data.lng];
+
+                // ── Move / create bus marker ──────────────────
+                if (busMarker) {
+                    busMarker.setLatLng(newPos);
+                    busMarker.setIcon(busIconLive);
+                } else {
+                    busMarker = L.marker(newPos, { icon: busIconLive, zIndexOffset: 1000 })
+                        .addTo(map);
+                }
+
+                // Popup on bus marker
+                busMarker.bindPopup(
+                    '<div style="min-width:180px;">' +
+                    '<b style="font-size:14px;">🚌 ' + BUS_NUMBER + '</b><br>' +
+                    '👤 ' + DRIVER + '<br>' +
+                    '📞 ' + DRIVER_PH + '<br>' +
+                    (data.speed && data.speed !== '—' ? '🚀 Speed: <b>' + data.speed + '</b><br>' : '') +
+                    (data.accuracy ? '🎯 Accuracy: ' + Math.round(data.accuracy) + ' m<br>' : '') +
+                    '<span style="color:#22c55e;font-weight:700;font-size:12px;">● LIVE GPS</span><br>' +
+                    '<span style="font-size:10px;color:#94a3b8;">Last update: ' + (data.updated_at ? data.updated_at.slice(11,19) : '—') + '</span>' +
+                    '</div>',
+                    { maxWidth: 240 }
+                );
+
+                // ── Accuracy circle ───────────────────────────
+                if (data.accuracy) {
+                    if (accuracyCircle) {
+                        accuracyCircle.setLatLng(newPos).setRadius(data.accuracy);
+                    } else {
+                        accuracyCircle = L.circle(newPos, {
+                            radius: data.accuracy,
+                            color: '#22c55e', fillColor: '#22c55e',
+                            fillOpacity: 0.07, weight: 1
+                        }).addTo(map);
+                    }
+                }
+
+                // ── Smooth pan to bus ─────────────────────────
+                map.panTo(newPos, { animate: true, duration: 1.2 });
+
+                // ── Status bar ────────────────────────────────
+                setStatusLive(data.speed, data.accuracy, data.updated_at);
+
+            } else {
+                // GPS OFF
+                if (busMarker)      { busMarker.setIcon(busIconOffline); }
+                if (accuracyCircle) { map.removeLayer(accuracyCircle); accuracyCircle = null; }
+                if (liveRouteLine)  { map.removeLayer(liveRouteLine);  liveRouteLine  = null; }
+                setStatusOffline();
+            }
+        })
+        .catch(function() { setStatusOffline(); });
+    }
+
+    // First call immediately, then every 10 seconds
+    fetchLiveGPS();
+    setInterval(fetchLiveGPS, 10000);
+
     </script>
 
     {% else %}

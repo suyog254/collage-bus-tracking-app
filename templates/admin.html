@@ -78,11 +78,19 @@
                             {% else %}
                             <a href="{{ url_for('bus_status', bid=b.id, status='active') }}" class="btn-sm btn-success">Activate</a>
                             {% endif %}
+                            <!-- 📡 GPS Button — Driver GPS Panel kholta hai -->
+                            <a href="{{ url_for('driver_gps_page', bus_id=b.id) }}"
+                               class="btn-sm"
+                               style="background:#0891b2;color:#fff;border:none;"
+                               target="_blank"
+                               title="Driver GPS Panel — {{ b.driver_name }}">
+                               📡 GPS
+                            </a>
                             <a href="{{ url_for('delete_bus', bid=b.id) }}" class="btn-sm btn-danger">Delete</a>
                         </td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:24px">No buses found.</td></tr>
+                    <tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:24px">No buses found.</td></tr>
                     {% endfor %}
                     </tbody>
                 </table>
