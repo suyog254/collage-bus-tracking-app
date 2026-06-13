@@ -219,7 +219,6 @@ The application will start at: **http://127.0.0.1:5000**
 > The database (`bus_tracker.db`) is created automatically on the first run, along with default seed data: 3 buses, 3 routes, and 1 admin account.
 
 ---
-
 ## 📦 Requirements
 
 Create a `requirements.txt` file in the project root with the following:
